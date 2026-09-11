@@ -3,6 +3,11 @@ const getGameManagerClass = () => (typeof require === 'function' ? require('../c
 const ME_KEY = 'futbolra-me';
 const ADMIN_KEY = 'futbolra-admin';
 
+const prefersReducedMotion = () =>
+  window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, minimumFractionDigits: 0 });
+
 const storage = {
   get(key) {
     try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -82,7 +87,7 @@ class App {
       this.updateFromData(data);
     } catch (error) {
       console.error('Error cargando partidos reales:', error);
-      this.showToast('No se han podido cargar los partidos reales', 'error');
+      this.showToast('No se han podido cargar los partidos. Se vuelve a intentar sola cada hora.', 'error');
     }
   }
 
@@ -193,7 +198,7 @@ class App {
     storage.set(ME_KEY, id);
     this.showPredictions();
     this.render();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
   }
 
   forgetMe(rerender = true) {
@@ -221,16 +226,37 @@ class App {
     setTimeout(() => toast.remove(), 3600);
   }
 
+  setJoinError(message) {
+    const input = this.elements.participantName;
+    const error = document.getElementById('join-error');
+    if (input) input.setAttribute('aria-invalid', message ? 'true' : 'false');
+    if (!error) return;
+    error.textContent = message || '';
+    error.hidden = !message;
+  }
+
   async addMe() {
     const name = this.elements.participantName?.value?.trim();
     if (!name) return;
+    const button = document.getElementById('join-button');
     const id = (crypto.randomUUID && crypto.randomUUID()) || `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this.setJoinError('');
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Añadiendo…';
+    }
     try {
       const data = await this.dataService.join(id, name);
       this.updateFromData(data);
     } catch (error) {
-      this.showToast(error.message, 'error');
+      this.setJoinError(error.message);
+      this.elements.participantName?.focus();
       return;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Añadirme';
+      }
     }
     this.elements.participantName.value = '';
     if (this.elements.rosterSearch) this.elements.rosterSearch.value = '';
@@ -288,12 +314,22 @@ class App {
     }
 
     this.setConfirming(false);
+    const button = this.elements.submitButton;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Guardando…';
+    }
     try {
       const data = await this.dataService.submitPredictions(this.currentParticipant.id, predictions);
       this.updateFromData(data);
       this.showToast('Pronósticos guardados');
     } catch (error) {
       this.showToast(error.message, 'error');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = 'Guardar pronósticos';
+      }
     }
   }
 
@@ -408,7 +444,7 @@ class App {
 
   updatePotDisplay() {
     if (this.elements.potAmount) {
-      this.elements.potAmount.textContent = `${this.gameManager.pot || 0} €`;
+      this.elements.potAmount.textContent = euros.format(this.gameManager.pot || 0);
     }
   }
 
@@ -429,8 +465,9 @@ class App {
     return String(value ?? '').replace(/[&<>"']/g, c => map[c]);
   }
 
-  crest(src, name, size = '') {
-    return `<img class="crest ${size}" src="${this.esc(src)}" alt="" loading="lazy" width="64" height="64" onerror="this.src='assets/logos/placeholder.svg'"><span class="sr-only">${this.esc(name)}</span>`;
+  crest(src, name, size = '', eager = false) {
+    const loading = eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
+    return `<img class="crest ${size}" src="${this.esc(src)}" alt="" ${loading} width="64" height="64" onerror="this.src='assets/logos/placeholder.svg'"><span class="sr-only">${this.esc(name)}</span>`;
   }
 
   kickoffLabel(date) {
@@ -473,7 +510,7 @@ class App {
     } else if (status === 'finished') {
       pill.textContent = 'Jornada terminada';
     } else {
-      pill.textContent = 'Cargando';
+      pill.textContent = 'Cargando…';
     }
   }
 
@@ -539,9 +576,9 @@ class App {
       <p class="kickoff-label">${label}</p>
       <p class="kickoff-big">${big}</p>
       <div class="kickoff-match">
-        <div class="kickoff-side">${this.crest(focus.team1Logo, focus.team1, 'crest--lg')}<span>${this.esc(focus.team1)}</span></div>
+        <div class="kickoff-side">${this.crest(focus.team1Logo, focus.team1, 'crest--lg', true)}<span>${this.esc(focus.team1)}</span></div>
         <span class="kickoff-vs">vs</span>
-        <div class="kickoff-side">${this.crest(focus.team2Logo, focus.team2, 'crest--lg')}<span>${this.esc(focus.team2)}</span></div>
+        <div class="kickoff-side">${this.crest(focus.team2Logo, focus.team2, 'crest--lg', true)}<span>${this.esc(focus.team2)}</span></div>
       </div>
       <p class="kickoff-caption">${caption}</p>
     `;
@@ -556,7 +593,7 @@ class App {
     if (this.elements.matchesDisplay) {
       this.elements.matchesDisplay.innerHTML = matches.length
         ? matches.map((match, i) => this.renderMatchCard(match, i)).join('')
-        : '<p class="empty">Cargando los partidos de la jornada.</p>';
+        : '<p class="empty">Cargando los partidos de la jornada…</p>';
     }
 
     if (!this.elements.matchesContainer) return;
@@ -720,7 +757,7 @@ class App {
         <li class="${classes}" data-participant-id="${this.esc(p.id)}">
           <span class="monogram" aria-hidden="true">${this.esc(p.name.trim().charAt(0).toUpperCase())}</span>
           <div class="player-main">
-            <span class="player-name${this.nameClass(p)}">${this.esc(p.name)}${isMe ? ' <em>Tú</em>' : ''}</span>
+            <span class="player-name${this.nameClass(p)}" title="${this.esc(p.name)}">${this.esc(p.name)}${isMe ? ' <em>Tú</em>' : ''}</span>
             <span class="player-state">${stateText}</span>
           </div>
           <div class="player-picks">${this.renderParticipantPredictions(p)}</div>
@@ -831,15 +868,15 @@ class App {
     const matches = this.gameManager.getMatches();
     const statusOptions = (current) => [['scheduled', 'Por jugar'], ['live', 'En juego'], ['finished', 'Final']]
       .map(([v, label]) => `<option value="${v}"${current === v ? ' selected' : ''}>${label}</option>`).join('');
-    const scoreInput = (name, value) =>
-      `<input class="admin-score" type="number" inputmode="numeric" min="0" max="20" name="${name}" value="${value ?? ''}">`;
+    const scoreInput = (name, value, label) =>
+      `<input class="admin-score" type="number" inputmode="numeric" min="0" max="20" name="${name}" value="${value ?? ''}" aria-label="${this.esc(label)}">`;
 
     const matchRows = matches.map((m, i) => `
       <div class="admin-row" data-admin-row="${this.esc(m.id)}">
         <span class="admin-match"><b>P${i + 1}</b> ${this.esc(m.team1)} - ${this.esc(m.team2)}${m.manual ? ' <em class="admin-tag">A mano</em>' : ''}</span>
         <div class="admin-inline">
-          ${scoreInput('score1', m.score1)}<span class="admin-dash">-</span>${scoreInput('score2', m.score2)}
-          <select name="status" class="admin-select">${statusOptions(m.status)}</select>
+          ${scoreInput('score1', m.score1, `Goles de ${m.team1}`)}<span class="admin-dash">-</span>${scoreInput('score2', m.score2, `Goles de ${m.team2}`)}
+          <select name="status" class="admin-select" aria-label="Estado de ${this.esc(m.team1)} - ${this.esc(m.team2)}">${statusOptions(m.status)}</select>
           <button type="button" class="btn btn-small" data-admin-action="setMatch">Guardar</button>
         </div>
       </div>`).join('');
@@ -854,7 +891,7 @@ class App {
         <div class="admin-picks">
           ${matches.map((m, i) => {
             const pred = p.predictions?.[m.id];
-            return `<span class="admin-pair" title="${this.esc(m.team1)} - ${this.esc(m.team2)}"><b>P${i + 1}</b>${scoreInput(`h-${m.id}`, pred?.score1)}<span class="admin-dash">-</span>${scoreInput(`a-${m.id}`, pred?.score2)}</span>`;
+            return `<span class="admin-pair" title="${this.esc(m.team1)} - ${this.esc(m.team2)}"><b>P${i + 1}</b>${scoreInput(`h-${m.id}`, pred?.score1, `${p.name}: goles de ${m.team1}`)}<span class="admin-dash">-</span>${scoreInput(`a-${m.id}`, pred?.score2, `${p.name}: goles de ${m.team2}`)}</span>`;
           }).join('')}
         </div>
         <div class="admin-swatches" role="group" aria-label="Color del nombre">
@@ -886,16 +923,25 @@ class App {
       <div class="admin-card">
         <h3 class="admin-title">Participantes</h3>
         <p class="admin-note">${matches.map((m, i) => `P${i + 1}: ${this.esc(m.team1)} - ${this.esc(m.team2)}`).join('<br>')}</p>
-        <input class="admin-filter" type="search" name="admin-filter" placeholder="Buscar" aria-label="Buscar participante">
+        <input class="admin-filter" type="search" name="admin-filter" placeholder="Buscar…" aria-label="Buscar participante">
         <div class="admin-people">${personRows}</div>
       </div>
 
       <form class="admin-card admin-login" data-admin-row="code">
         <h3 class="admin-title">Tu acceso</h3>
         <p class="admin-note">Al cambiar el código se cierran los demás dispositivos donde hayas entrado.</p>
-        <input class="field" type="password" name="oldCode" autocomplete="current-password" placeholder="Código actual" aria-label="Código actual">
-        <input class="field" type="password" name="newCode" autocomplete="new-password" placeholder="Código nuevo" aria-label="Código nuevo" minlength="6">
-        <input class="field" type="password" name="newCode2" autocomplete="new-password" placeholder="Repite el código nuevo" aria-label="Repite el código nuevo" minlength="6">
+        <div>
+          <label class="field-label" for="admin-old">Código actual</label>
+          <input class="field" id="admin-old" type="password" name="oldCode" autocomplete="current-password">
+        </div>
+        <div>
+          <label class="field-label" for="admin-new-code">Código nuevo</label>
+          <input class="field" id="admin-new-code" type="password" name="newCode" autocomplete="new-password" minlength="6">
+        </div>
+        <div>
+          <label class="field-label" for="admin-new-code2">Repite el código nuevo</label>
+          <input class="field" id="admin-new-code2" type="password" name="newCode2" autocomplete="new-password" minlength="6">
+        </div>
         <div class="admin-actions">
           <button type="submit" class="btn btn-small" data-admin-action="changeCode">Cambiar código</button>
           <button type="button" class="btn-link" data-admin-action="logout">Cerrar sesión en este dispositivo</button>

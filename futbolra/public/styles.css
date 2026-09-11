@@ -3,6 +3,7 @@
    Radios: tarjetas 20px, campos 12px, botones y chips en píldora. */
 
 :root {
+  color-scheme: dark;
   --bg: #0b1310;
   --bg-2: #101b16;
   --bg-3: #172720;
@@ -32,7 +33,11 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { -webkit-text-size-adjust: 100%; }
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  scroll-padding-top: 88px; /* la cabecera fija no tapa lo enfocado */
+}
 
 body {
   font-family: var(--font-body);
@@ -48,11 +53,21 @@ body {
 img { display: block; max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 button, input, select { font: inherit; color: inherit; }
-button { cursor: pointer; background: none; border: 0; }
+button { cursor: pointer; background: none; border: 0; touch-action: manipulation; }
 ol, ul { list-style: none; }
 [hidden] { display: none !important; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+.skip-link {
+  position: fixed; top: 12px; left: 12px; z-index: 40;
+  padding: 10px 16px; border-radius: var(--radius-pill);
+  background: var(--accent); color: var(--accent-ink); font-weight: 600;
+  transform: translateY(-160%);
+  transition: transform 160ms var(--ease-out);
+}
+.skip-link:focus-visible { transform: none; }
+main:focus { outline: none; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -170,7 +185,10 @@ h1.hero-title { text-wrap: balance; }
   transition: border-color 160ms ease, background-color 160ms ease;
 }
 .field:hover { border-color: rgba(214, 232, 220, 0.3); }
-.field:focus { outline: none; border-color: var(--accent); background: var(--bg-3); }
+.field:focus { outline: none; }
+.field:focus-visible { border-color: var(--accent); background: var(--bg-3); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field-error { margin-top: 8px; font-size: 14px; color: var(--danger); }
+.field[aria-invalid="true"] { border-color: var(--danger); }
 .field::-webkit-search-cancel-button { filter: invert(0.7); }
 
 /* Lista de nombres */
@@ -231,6 +249,7 @@ h1.hero-title { text-wrap: balance; }
   transition: transform 160ms var(--ease-out), background-color 160ms ease;
 }
 .btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.6; cursor: progress; transform: none; }
 .btn-primary { background: var(--accent); color: var(--accent-ink); }
 @media (hover: hover) and (pointer: fine) {
   .btn-primary:hover { background: #d6f86e; }
@@ -370,8 +389,9 @@ h1.hero-title { text-wrap: balance; }
 .score-input::-webkit-outer-spin-button,
 .score-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .score-input::placeholder { color: var(--text-3); opacity: 0.55; }
-.score-input:focus { outline: none; color: var(--accent); }
-.stepper:focus-within { border-color: var(--accent); }
+.score-input:focus { outline: none; }
+.score-input:focus-visible { color: var(--accent); }
+.stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 .picks-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
 .pick-score--locked { gap: 14px; }
@@ -541,7 +561,8 @@ h1.hero-title { text-wrap: balance; }
   background: var(--bg);
   font-size: 15px;
 }
-.admin input:focus, .admin select:focus { outline: none; border-color: var(--accent); }
+.admin input:focus, .admin select:focus { outline: none; }
+.admin input:focus-visible, .admin select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .admin-score { width: 52px; text-align: center; font-family: var(--font-mono); -moz-appearance: textfield; appearance: textfield; }
 .admin-score::-webkit-outer-spin-button, .admin-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .admin-pot { width: 110px; font-family: var(--font-mono); }
@@ -597,7 +618,7 @@ h1.hero-title { text-wrap: balance; }
 /* ---------- Avisos ---------- */
 
 .toast-container {
-  position: fixed; left: 50%; bottom: 24px; z-index: 30;
+  position: fixed; left: 50%; bottom: max(24px, calc(env(safe-area-inset-bottom) + 12px)); z-index: 30;
   transform: translateX(-50%);
   display: grid; gap: 8px;
   width: min(420px, calc(100% - 32px));
