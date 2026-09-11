@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Futbolra - Pronósticos de fútbol premium entre amigos">
+  <title>Futbolra | Porra de Fútbol Premium</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+</head>
+<body>
+  <div class="bg-pattern"></div>
+  
+  <header class="header">
+    <div class="container">
+      <div class="header-content">
+        <a href="#" class="logo" aria-label="Futbolra - Inicio">
+          <svg class="logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2"/>
+            <path d="M24 8C15.16 8 8 15.16 8 24s7.16 16 16 16 16-7.16 16-16S32.84 8 24 8zm0 28c-6.63 0-12-5.37-12-12S17.37 16 24 16s12 5.37 12 12-5.37 12-12 12z" fill="currentColor"/>
+            <ellipse cx="24" cy="24" rx="6" ry="3" fill="url(#gradient)"/>
+            <defs>
+              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FFD700"/>
+                <stop offset="100%" stop-color="#FFA500"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Futbolra</span>
+        </a>
+        
+        <div class="header-stats">
+          <div class="stat">
+            <span class="stat-value" id="pot-amount">0€</span>
+            <span class="stat-label">Bote</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" id="journey-status">Cargando...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="container">
+      <section class="join-section" id="join-section">
+        <div class="card">
+          <h2>Únete a la porra</h2>
+          <p>Introduce tu nombre para empezar a pronosticar</p>
+          <form id="join-form" class="join-form">
+            <input type="text" id="participant-name" placeholder="Tu nombre" required minlength="2" maxlength="50">
+            <button type="submit" class="btn btn-primary">Entrar</button>
+          </form>
+        </div>
+      </section>
+
+      <section class="predictions-section" id="predictions-section" style="display: none;">
+        <div class="section-header">
+          <h2>Tus predicciones</h2>
+          <p class="section-subtitle">Jornada <span id="current-round">1</span> - <span id="journey-dates"></span></p>
+        </div>
+        
+        <form id="prediction-form" class="predictions-grid">
+          <div id="matches-container"></div>
+          
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg" id="submit-predictions">
+              <span class="btn-text">Guardar predicciones</span>
+              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="matches-section">
+        <div class="section-header">
+          <h2>Partidos</h2>
+          <p class="section-subtitle">Resultados en vivo</p>
+        </div>
+        <div class="matches-grid" id="matches-display"></div>
+      </section>
+
+      <section class="participants-section">
+        <div class="section-header">
+          <h2>Clasificación</h2>
+          <p class="section-subtitle">Estado de los participantes</p>
+        </div>
+        <div class="participants-list" id="participants-display"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Futbolra. Porra de fútbol entre amigos - 100% automática</p>
+    </div>
+  </footer>
+
+  <div class="toast-container" id="toast-container" aria-live="polite"></div>
+
+  <script type="module">
+    import { GameManager } from '../src/core/GameManager.js';
+    import { DataService } from '../src/services/DataService.js';
+    import { ScheduleService } from '../src/services/ScheduleService.js';
+    import { App } from '../src/ui/App.js';
+
+    // Browser-compatible data service using localStorage
+    const browserDataService = {
+      async init() {},
+      
+      async saveGameManager(gameManager) {
+        const data = gameManager.toJSON();
+        localStorage.setItem('futbolra-game', JSON.stringify(data));
+        window.dispatchEvent(new CustomEvent('futbolra-update', { detail: data }));
+      },
+      
+      async loadGameManager() {
+        const data = localStorage.getItem('futbolra-game');
+        return data ? JSON.parse(data) : null;
+      },
+      
+      subscribeToGame(callback) {
+        const handler = (e) => callback(e.detail);
+        window.addEventListener('futbolra-update', handler);
+        return () => window.removeEventListener('futbolra-update', handler);
+      },
+      
+      unsubscribeFromGame(callback) {},
+      
+      async savePot(amount) {
+        localStorage.setItem('futbolra-pot', amount.toString());
+      },
+      
+      async loadPot() {
+        return parseInt(localStorage.getItem('futbolra-pot') || '0', 10);
+      }
+    };
+
+    async function initApp() {
+      const gameManager = new GameManager();
+      const scheduleService = new ScheduleService();
+      scheduleService.setGameManager(gameManager);
+      scheduleService.startAutoSchedule();
+
+      const app = new App();
+      await app.init(gameManager, browserDataService, scheduleService);
+      
+      window.app = app;
+      window.gameManager = gameManager;
+    }
+
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "name": "futbolra",
+  "version": "1.0.0",
+  "description": "Pronósticos de fútbol premium entre amigos - 100% automático",
+  "main": "src/core/GameManager.js",
+  "scripts": {
+    "test": "jest --coverage",
+    "test:watch": "jest --watch",
+    "start": "npx serve public",
+    "dev": "npx serve public -l 3000",
+    "build": "echo 'Static site - no build needed'",
+    "lint": "eslint src/**/*.js"
+  },
+  "keywords": [
+    "football",
+    "predictions",
+    "premium",
+    "automation"
+  ],
+  "author": "Futbolra Team",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "29.7.0",
+    "eslint": "8.57.0"
+  },
+  "dependencies": {
+    "firebase": "10.7.1",
+    "date-fns": "3.0.6"
+  }
+}
