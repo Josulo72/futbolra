@@ -11,7 +11,13 @@
   <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap">
   <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Futbolra">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -55,7 +61,11 @@
           <p class="kicker" id="me-round">Jornada</p>
           <h1 class="hero-title" id="me-title">Hola</h1>
           <p class="hero-sub" id="me-sub"></p>
-          <button type="button" class="btn-link" id="not-me">No soy yo</button>
+          <button type="button" class="btn btn-small me-exit" id="not-me">Volver al menú principal</button>
+        </div>
+        <div class="install" id="install" hidden>
+          <p>Tenla en el móvil como una app, sin pasar por la tienda.</p>
+          <button type="button" class="btn btn-small" id="install-button">Instalar la app</button>
         </div>
       </div>
 
@@ -67,14 +77,31 @@
       </aside>
     </section>
 
+    <!-- Valla LED del estadio: decorativa, el titular ya dice lo mismo -->
+    <div class="stadium" id="stadium">
+      <div class="led-board" aria-hidden="true">
+        <div class="led-track">
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+          <span>Tres marcadores</span><span class="led-lime">Un superviviente</span><span>Futbol<em>ra</em></span>
+        </div>
+      </div>
+      <button type="button" class="led-pause" id="led-pause" aria-pressed="false" aria-label="Pausar la animación">
+        <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/></svg>
+        <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.8v10.4a.8.8 0 0 0 1.2.7l8.3-5.2a.8.8 0 0 0 0-1.4L5.7 2.1a.8.8 0 0 0-1.2.7z" fill="currentColor"/></svg>
+      </button>
+    </div>
+
     <section class="block wrap" id="predictions-section" style="display: none;">
       <h2 class="block-title">Tus pronósticos</h2>
-      <p class="block-sub">Jornada <span id="current-round">1</span><span id="journey-dates"></span>. <span id="picks-sub">Solo se pueden guardar una vez, así que revísalos antes de confirmar.</span></p>
+      <p class="block-sub">Jornada <span id="current-round">1</span><span id="journey-dates"></span>. <span id="picks-sub">Marca los goles de cada equipo con + y −. Cuando tengas los tres partidos, pulsa Guardar pronósticos.</span></p>
       <form id="prediction-form" class="picks" novalidate>
         <div id="matches-container"></div>
         <p class="field-error picks-error" id="picks-error" role="alert" hidden></p>
         <div class="picks-actions">
-          <p class="sr-only" id="picks-status" aria-live="polite"></p>
           <button type="submit" class="btn btn-primary btn-lg" id="submit-predictions">Guardar pronósticos</button>
         </div>
       </form>
@@ -101,7 +128,10 @@
     </section>
 
     <section class="block wrap" id="admin-section" hidden>
-      <h2 class="block-title">Administración</h2>
+      <div class="admin-head">
+        <h2 class="block-title">Administración</h2>
+        <button type="button" class="btn btn-small" id="admin-exit">Volver al menú principal</button>
+      </div>
       <div class="admin" id="admin-panel"></div>
     </section>
   </main>
@@ -109,7 +139,35 @@
   <footer class="footer wrap">
     <p>Futbolra. Porra entre amigos, sin dinero de por medio.</p>
     <p>Datos de partidos: ESPN y TheSportsDB.</p>
+    <a href="#admin" class="footer-admin" id="admin-link" hidden>Administración</a>
   </footer>
+
+  <dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-note">
+    <div class="confirm-card">
+      <h2 class="confirm-title" id="confirm-title">¿Guardar tus pronósticos?</h2>
+      <ul class="confirm-list" id="confirm-list"></ul>
+      <p class="confirm-note" id="confirm-note">Solo se guardan una vez. Si luego ves un error, díselo al administrador.</p>
+      <p class="field-error" id="confirm-error" role="alert" hidden></p>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-ghost" id="confirm-cancel">Volver a editar</button>
+        <button type="button" class="btn btn-primary" id="confirm-ok">Sí, guardar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="confirm" id="install-dialog" aria-labelledby="install-title">
+    <div class="confirm-card">
+      <h2 class="confirm-title" id="install-title">Futbolra en tu iPhone</h2>
+      <ol class="install-steps">
+        <li><span class="install-num">1</span><span>Pulsa <b>Compartir</b> <svg class="share-glyph" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg> en la barra de Safari.</span></li>
+        <li><span class="install-num">2</span><span>Elige <b>Añadir a pantalla de inicio</b>.</span></li>
+        <li><span class="install-num">3</span><span>Pulsa <b>Añadir</b>. Ya la tienes junto a tus apps.</span></li>
+      </ol>
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-primary" id="install-close">Entendido</button>
+      </div>
+    </div>
+  </dialog>
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
@@ -209,6 +267,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', initApp);
+
+    // App instalable en Android e iPhone
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+    }
   </script>
 </body>
 </html>

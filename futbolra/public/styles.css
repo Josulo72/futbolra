@@ -15,9 +15,13 @@
   --accent: #c9f24d;
   --accent-ink: #13210f;
   --accent-soft: rgba(201, 242, 77, 0.12);
-  --danger: #ff8a73;
+  --danger: var(--card-red);
+  /* Tarjetas de árbitro: el amarillo avisa, el rojo expulsa */
   --card-yellow: #f2d04b;
+  --card-yellow-ink: #231c05;
+  --card-yellow-soft: rgba(242, 208, 75, 0.12);
   --card-red: #ff6b57;
+  --card-red-soft: rgba(255, 107, 87, 0.12);
 
   --font-display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
   --font-body: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -56,6 +60,8 @@ button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; background: none; border: 0; touch-action: manipulation; }
 ol, ul { list-style: none; }
 [hidden] { display: none !important; }
+::selection { background: rgba(201, 242, 77, 0.3); color: var(--text); }
+input { caret-color: var(--accent); }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 
@@ -114,7 +120,7 @@ main:focus { outline: none; }
 
 .pot { display: flex; align-items: baseline; gap: 8px; }
 .pot-label { font-size: 13px; color: var(--text-3); }
-.pot-value { font-family: var(--font-mono); font-size: 15px; color: var(--text); }
+.pot-value { font-family: var(--font-mono); font-size: 15px; color: var(--text); white-space: nowrap; }
 
 .state-pill {
   display: inline-flex; align-items: center; gap: 8px;
@@ -123,8 +129,10 @@ main:focus { outline: none; }
   border: 1px solid var(--line-strong);
   font-size: 13px; color: var(--text-2);
   white-space: nowrap;
+  transition: color 300ms ease, border-color 300ms ease, background-color 300ms ease;
 }
 .state-pill.state-open { color: var(--accent); border-color: rgba(201, 242, 77, 0.35); background: var(--accent-soft); }
+.state-pill.state-closing { color: var(--card-yellow); border-color: rgba(242, 208, 75, 0.4); background: var(--card-yellow-soft); }
 .state-pill.state-live, .state-pill.state-locked { color: var(--text); }
 
 .live-dot {
@@ -176,6 +184,19 @@ h1.hero-title { text-wrap: balance; }
   font-size: 18px;
   color: var(--text-2);
 }
+/* Aviso o expulsión del propio jugador, con su tarjeta delante */
+.hero-sub[data-card="yellow"]::before,
+.hero-sub[data-card="red"]::before {
+  content: '';
+  display: inline-block;
+  width: 0.62em; height: 0.86em;
+  margin-right: 0.55em;
+  border-radius: 2px;
+  background: var(--card-yellow);
+  box-shadow: 0 2px 5px rgba(3, 8, 6, 0.45);
+  transform: translateY(0.1em) rotate(-8deg);
+}
+.hero-sub[data-card="red"]::before { background: var(--card-red); }
 
 .field-label { display: block; font-size: 14px; color: var(--text-2); margin-bottom: 8px; }
 .field {
@@ -225,6 +246,7 @@ h1.hero-title { text-wrap: balance; }
 .roster-empty { color: var(--text-2); font-size: 15px; padding: 8px 2px; }
 
 .join-form { margin-top: 24px; max-width: 460px; }
+.me-exit { margin-top: 24px; }
 .join-row { display: flex; gap: 10px; }
 .join-row .field { flex: 1; }
 
@@ -265,9 +287,9 @@ h1.hero-title { text-wrap: balance; }
 @media (hover: hover) and (pointer: fine) {
   .btn-small:hover { border-color: var(--accent); }
 }
-.btn.is-confirming { background: #f2d04b; color: #231c05; }
+.btn-ghost { background: transparent; border: 1px solid var(--line-strong); color: var(--text); }
 @media (hover: hover) and (pointer: fine) {
-  .btn.is-confirming:hover { background: #f7df79; }
+  .btn-ghost:hover { border-color: var(--accent); }
 }
 
 /* Panel del primer partido */
@@ -319,6 +341,7 @@ h1.hero-title { text-wrap: balance; }
 .kickoff-side { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; min-width: 0; }
 .kickoff-side span { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
 .kickoff-vs { font-family: var(--font-display); font-weight: 800; font-size: 20px; color: var(--text-3); text-transform: uppercase; }
+.kickoff-big.is-closing { color: var(--card-yellow); }
 .kickoff-caption { margin-top: 20px; font-size: 14px; color: var(--text-2); }
 
 .kickoff-skeleton { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: auto; }
@@ -327,6 +350,96 @@ h1.hero-title { text-wrap: balance; }
 
 .crest { width: 40px; height: 40px; object-fit: contain; flex: none; }
 .crest--lg { width: 64px; height: 64px; }
+
+/* Instalar como app */
+.install {
+  margin-top: 28px;
+  max-width: 560px;
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px 12px 12px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+}
+.install p { flex: 1 1 220px; font-size: 14px; color: var(--text-2); }
+.install-steps { display: grid; gap: 14px; }
+.install-steps li { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: center; gap: 12px; font-size: 15px; color: var(--text-2); }
+.install-steps b { color: var(--text); font-weight: 600; }
+.install-num {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--font-display); font-weight: 800; font-size: 18px;
+}
+.share-glyph { display: inline-block; width: 18px; height: 18px; vertical-align: -3px; color: var(--accent); }
+
+/* ---------- Valla LED del estadio ---------- */
+
+.stadium { position: relative; margin-top: 32px; }
+.led-board {
+  position: relative;
+  overflow: hidden;
+  height: 64px;
+  padding-block: 12px;
+  background: #040705;
+  border-block: 1px solid rgba(201, 242, 77, 0.14);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+/* Rejilla de píxeles por encima del texto: se lee como una pantalla LED */
+.led-board::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, transparent 1.2px, rgba(4, 7, 5, 0.72) 1.8px);
+  background-size: 4px 4px;
+}
+.led-track {
+  display: flex; align-items: center;
+  width: max-content; height: 100%;
+  animation: led-scroll 36s linear infinite;
+}
+.led-track span {
+  display: inline-flex; align-items: center;
+  gap: 32px; padding-right: 32px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 40px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #f4f8ef;
+}
+.led-track span::after {
+  content: '';
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--accent);
+}
+.led-track .led-lime, .led-track em { color: var(--accent); font-style: normal; }
+@keyframes led-scroll { to { transform: translateX(-50%); } }
+.stadium.is-paused .led-track,
+.stadium.is-offscreen .led-track { animation-play-state: paused; }
+
+.led-pause {
+  position: absolute; right: 16px; top: 50%; z-index: 1;
+  transform: translateY(-50%);
+  width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: rgba(4, 7, 5, 0.9);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  transition: color 140ms ease, border-color 140ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .led-pause:hover { color: var(--accent); border-color: var(--accent); }
+}
+.led-pause:focus-visible { border-radius: 50%; }
+.led-pause svg { width: 16px; height: 16px; }
+.led-pause .icon-play,
+.led-pause[aria-pressed="true"] .icon-pause { display: none; }
+.led-pause[aria-pressed="true"] .icon-play { display: block; }
 
 /* ---------- Bloques ---------- */
 
@@ -411,7 +524,27 @@ h1.hero-title { text-wrap: balance; }
   font-family: var(--font-display); font-weight: 900; font-size: 40px; line-height: 1;
   color: var(--accent);
 }
-.pick--locked { background: linear-gradient(90deg, var(--bg-2), #13211a 50%, var(--bg-2)); }
+.pick--locked {
+  position: relative; isolation: isolate; overflow: hidden;
+  background: linear-gradient(90deg, var(--bg-2), #13211a 50%, var(--bg-2));
+}
+
+/* Sellar: cada marcador se estampa y una luz barre la tarjeta, uno tras otro */
+.is-sealing .locked-num {
+  animation: seal-press 460ms var(--ease-out) both;
+  animation-delay: calc(var(--i, 0) * 110ms + 80ms);
+}
+.pick--locked.is-sealing::after {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 35%, rgba(201, 242, 77, 0.16) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: seal-sweep 900ms var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+@keyframes seal-press { from { opacity: 0; transform: scale(1.6); filter: blur(6px); } }
+@keyframes seal-sweep { to { transform: translateX(100%); } }
 
 /* ---------- Partidos (bento 1 + 2) ---------- */
 
@@ -429,6 +562,7 @@ h1.hero-title { text-wrap: balance; }
   padding: 20px 22px 22px;
   display: flex; flex-direction: column;
   min-width: 0;
+  position: relative; isolation: isolate;
 }
 .fixture--lead {
   grid-row: span 2;
@@ -468,6 +602,32 @@ h1.hero-title { text-wrap: balance; }
 .board-dash { color: var(--text-3); margin: 0 0.12em; }
 .board-time { color: var(--text-2); font-weight: 800; }
 .is-final .board { color: var(--text); }
+
+/* Gol: el dígito que cambia cae en su ventana, como en un videomarcador */
+.digit { display: inline-grid; vertical-align: top; }
+.digit > span { grid-area: 1 / 1; }
+.digit.is-changed { clip-path: inset(-0.06em -0.3em); }
+.digit-old { animation: digit-out 460ms var(--ease-out) forwards; }
+.digit-new { animation: digit-in 620ms var(--ease-out) 80ms both; }
+@keyframes digit-out { to { transform: translateY(0.9em); opacity: 0; filter: blur(2px); } }
+@keyframes digit-in { from { transform: translateY(-0.9em); opacity: 0; filter: blur(2px); } }
+
+.is-goal .board { animation: goal-flash 1400ms ease-out; }
+.kickoff-big.is-goal { animation: goal-flash-lime 1400ms ease-out; }
+@keyframes goal-flash { 0%, 35% { color: var(--accent); } }
+@keyframes goal-flash-lime { 0%, 35% { color: var(--text); } }
+
+/* El foco del estadio se enciende un instante sobre el partido del gol */
+.fixture.is-goal::after {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(34rem 16rem at 50% 0%, rgba(201, 242, 77, 0.2), transparent 70%);
+  opacity: 0;
+  animation: floodlight 1600ms var(--ease-out);
+}
+@keyframes floodlight { 12% { opacity: 1; } }
 
 .timeline {
   margin-top: 16px;
@@ -520,6 +680,7 @@ h1.hero-title { text-wrap: balance; }
 
 .monogram {
   width: 40px; height: 40px; border-radius: 50%;
+  position: relative;
   display: grid; place-items: center;
   background: var(--bg-3);
   font-family: var(--font-display); font-weight: 800; font-size: 20px;
@@ -545,15 +706,60 @@ h1.hero-title { text-wrap: balance; }
 .chip--empty { color: var(--text-3); border-style: dashed; }
 .chip--hit { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .chip--miss { color: var(--text-3); text-decoration: line-through; }
+/* En directo: va acertando (contorno lima) o va fallando (apagado) */
+.chip--on { color: var(--accent); border-color: rgba(201, 242, 77, 0.55); }
+.chip--off { color: var(--text-3); }
+/* El marcador que le echó: roja */
+.chip--out { color: var(--card-red); border-color: rgba(255, 107, 87, 0.5); background: var(--card-red-soft); text-decoration: line-through; }
+
+/* La onda de un gol o de un final: cada chip cambia con un destello, en cascada */
+.chip.is-flip { animation: 800ms var(--ease-out) var(--d, 0ms) backwards; }
+.chip--on.is-flip { animation-name: chip-on; }
+.chip--off.is-flip { animation-name: chip-off; }
+.chip--hit.is-flip { animation-name: chip-hit; }
+.chip--out.is-flip { animation-name: chip-out; }
+.chip--miss.is-flip { animation-name: chip-settle; }
+@keyframes chip-on {
+  0% { color: var(--text); border-color: var(--line-strong); }
+  30% { color: var(--accent-ink); background-color: var(--accent); border-color: var(--accent); }
+}
+@keyframes chip-off {
+  0% { color: var(--text); border-color: var(--line-strong); }
+  30% { color: var(--card-red); border-color: var(--card-red); }
+}
+@keyframes chip-hit { 0% { color: var(--text); background-color: transparent; border-color: var(--line-strong); } }
+@keyframes chip-out {
+  0% { color: var(--text); background-color: transparent; border-color: var(--line-strong); }
+  30% { color: #1c0804; background-color: var(--card-red); border-color: var(--card-red); }
+}
+@keyframes chip-settle { 0% { color: var(--text); } }
 
 .player--out .monogram { color: var(--text-3); }
 .player--out .player-name { color: var(--text-3); }
+/* Tarjeta roja en la esquina del eliminado */
+.player--out .monogram::after {
+  content: '';
+  position: absolute; right: -3px; bottom: -2px;
+  width: 11px; height: 15px;
+  border-radius: 2px;
+  background: var(--card-red);
+  box-shadow: 0 2px 5px rgba(3, 8, 6, 0.5);
+  transform: rotate(12deg);
+}
+
+/* Eliminación: la roja cae sobre el jugador y su fila baja a la grada (FLIP en App.js) */
+.player.is-just-out { position: relative; z-index: 1; animation: out-flash 1600ms var(--ease-out); }
+.player.is-just-out .monogram::after { animation: card-slam 420ms var(--ease-out) both; }
+@keyframes out-flash { 0%, 30% { background-color: var(--card-red-soft); } }
+@keyframes card-slam { from { opacity: 0; transform: translate(-16px, -26px) rotate(-34deg) scale(1.9); } }
+@keyframes fade-in { from { opacity: 0; } }
 
 .empty { padding: 24px; color: var(--text-2); }
 #matches-container .empty { padding: 20px 24px; border-radius: var(--radius-card); background: var(--bg-2); border: 1px solid var(--line); }
 
 /* ---------- Administración ---------- */
 
+.admin-head { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; }
 .admin { margin-top: 24px; display: grid; gap: 12px; }
 .admin-card {
   border-radius: var(--radius-card);
@@ -576,7 +782,20 @@ h1.hero-title { text-wrap: balance; }
 .admin input:focus-visible, .admin select:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .admin-score { width: 52px; text-align: center; font-family: var(--font-mono); -moz-appearance: textfield; appearance: textfield; }
 .admin-score::-webkit-outer-spin-button, .admin-score::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.admin-pot { width: 110px; font-family: var(--font-mono); }
+/* Campo del bote con el € dentro */
+.admin-money {
+  display: inline-flex; align-items: center;
+  height: 38px; padding-right: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  font-family: var(--font-mono);
+  color: var(--text-2);
+}
+.admin-money:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.admin .admin-money input { height: 36px; border: 0; background: transparent; }
+.admin .admin-money input:focus-visible { box-shadow: none; }
+.admin-pot { width: 150px; text-align: right; font-family: var(--font-mono); color: var(--text); }
 .admin-dash { color: var(--text-3); }
 .admin-select { min-width: 120px; }
 .admin option { background: var(--bg-2); color: var(--text); }
@@ -586,7 +805,7 @@ h1.hero-title { text-wrap: balance; }
 }
 .admin-match { font-weight: 600; }
 .admin-match b, .admin-pair b { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--text-3); margin-right: 6px; }
-.admin-tag { font-style: normal; font-size: 12px; color: #f2d04b; margin-left: 6px; }
+.admin-tag { font-style: normal; font-size: 12px; color: var(--card-yellow); margin-left: 6px; }
 .admin-filter { width: 100%; max-width: 320px; }
 .admin-people { display: grid; }
 .admin-person {
@@ -629,6 +848,94 @@ h1.hero-title { text-wrap: balance; }
   font-size: 13px; color: var(--text-3);
 }
 
+.footer-admin { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
+@media (hover: hover) and (pointer: fine) {
+  .footer-admin:hover { color: var(--text); }
+}
+
+/* ---------- Ventana de confirmación ---------- */
+
+html:has(.confirm[open]) { overflow: hidden; }
+.confirm {
+  margin: auto;
+  padding: 0; border: 0;
+  background: transparent; color: var(--text);
+  width: min(520px, calc(100% - 32px));
+  max-width: none;
+  max-height: calc(100dvh - 32px);
+  overflow: visible;
+}
+.confirm::backdrop {
+  background: rgba(4, 9, 7, 0.66);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.confirm-card {
+  display: grid; gap: 18px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 28px 28px 24px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-strong);
+  background:
+    radial-gradient(28rem 12rem at 50% -30%, rgba(201, 242, 77, 0.1), transparent 70%),
+    linear-gradient(180deg, #152419, var(--bg-2) 60%);
+  box-shadow: 0 30px 80px rgba(3, 8, 6, 0.6), 0 8px 20px rgba(3, 8, 6, 0.4);
+}
+.confirm-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.9rem, 6vw, 2.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.confirm-list { display: grid; gap: 8px; }
+.confirm-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(11, 19, 16, 0.55);
+  border: 1px solid var(--line);
+}
+.confirm-team { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 600; font-size: 15px; line-height: 1.2; }
+.confirm-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.confirm-team--away { justify-content: flex-end; text-align: right; }
+.confirm-team .crest { width: 32px; height: 32px; }
+.confirm-score {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 32px;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.confirm-note { font-size: 14px; color: var(--text-2); }
+.confirm-note::before {
+  content: '';
+  display: inline-block;
+  width: 0.62em; height: 0.86em;
+  margin-right: 0.55em;
+  border-radius: 2px;
+  background: var(--card-yellow);
+  box-shadow: 0 2px 5px rgba(3, 8, 6, 0.45);
+  transform: translateY(0.1em) rotate(-8deg);
+}
+.confirm-actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+
+.confirm[open] { animation: confirm-in 320ms var(--ease-out); }
+.confirm[open]::backdrop { animation: fade-in 320ms ease-out; }
+.confirm.is-closing { animation: confirm-out 160ms ease-in forwards; }
+.confirm.is-closing::backdrop { animation: fade-out 160ms ease-in forwards; }
+@keyframes confirm-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } }
+@keyframes confirm-out { to { opacity: 0; transform: translateY(8px) scale(0.98); } }
+@keyframes fade-out { to { opacity: 0; } }
+
 /* ---------- Avisos ---------- */
 
 .toast-container {
@@ -638,20 +945,32 @@ h1.hero-title { text-wrap: balance; }
   width: min(420px, calc(100% - 32px));
 }
 .toast {
+  display: flex; align-items: center; gap: 12px;
   padding: 14px 18px;
   border-radius: 14px;
   background: var(--bg-3);
   border: 1px solid var(--line-strong);
-  border-left: 3px solid var(--accent);
   font-size: 15px;
   box-shadow: 0 18px 40px rgba(3, 8, 6, 0.55);
   animation: toast-in 260ms var(--ease-out) both;
 }
-.toast.error { border-left-color: var(--danger); }
+.toast::before {
+  content: '';
+  flex: none;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+}
+.toast.error::before {
+  width: 10px; height: 14px; border-radius: 2px;
+  background: var(--card-red);
+  transform: rotate(-8deg);
+}
+.toast.is-leaving { animation: toast-out 180ms ease-in forwards; }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(10px) scale(0.98); }
   to { opacity: 1; transform: none; }
 }
+@keyframes toast-out { to { opacity: 0; transform: translateY(6px) scale(0.98); } }
 
 /* ---------- Esqueletos de carga ---------- */
 
@@ -693,6 +1012,15 @@ h1.hero-title { text-wrap: balance; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* Sin desplazamiento, pero se queda el color que confirma el cambio */
+  .is-goal .board, .kickoff-big.is-goal { animation-duration: 1400ms !important; }
+  .fixture.is-goal::after { animation-duration: 1600ms !important; }
+  .chip.is-flip { animation-duration: 800ms !important; }
+  .player.is-just-out { animation-duration: 1600ms !important; }
+  .player.is-just-out .monogram::after,
+  .is-sealing .locked-num { animation-name: fade-in !important; animation-duration: 240ms !important; }
+  /* La valla se queda quieta, así que el botón de pausa sobra */
+  .led-pause { display: none; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -737,6 +1065,22 @@ h1.hero-title { text-wrap: balance; }
   .crest:not(.crest--lg) { width: 32px; height: 32px; }
   .picks-actions .btn { width: 100%; }
   .picks-error { text-align: center; }
+
+  .confirm-card { padding: 22px 18px 18px; }
+  .confirm-row { gap: 8px; padding: 12px; }
+  .confirm-team { font-size: 14px; }
+  .confirm-team .crest { display: none; }
+  .confirm-team span { white-space: normal; overflow-wrap: anywhere; }
+  .confirm-score { font-size: 28px; }
+  .confirm-actions { flex-direction: column-reverse; }
+  .confirm-actions .btn { width: 100%; }
+
+  .install { padding: 14px; }
+  .install .btn { width: 100%; }
+  .led-board { height: 48px; padding-block: 9px; }
+  .led-track span { font-size: 30px; gap: 22px; padding-right: 22px; }
+  .led-track span::after { width: 8px; height: 8px; }
+  .led-pause { right: 10px; width: 36px; height: 36px; }
 
   .fixture-body { gap: 8px; }
   .fixture--lead .crest--lg { width: 64px; height: 64px; }

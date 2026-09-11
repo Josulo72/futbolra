@@ -2,11 +2,18 @@ const getGameManagerClass = () => (typeof require === 'function' ? require('../c
 
 const ME_KEY = 'futbolra-me';
 const ADMIN_KEY = 'futbolra-admin';
+const MOTION_KEY = 'futbolra-motion';
+const INSTALL_TIP_KEY = 'futbolra-install-tip';
 
 const prefersReducedMotion = () =>
   window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, minimumFractionDigits: 0 });
+// Desde aquí el cierre de la jornada se avisa en amarillo
+const CLOSING_SOON_MS = 60 * 60 * 1000;
+
+// Siempre con punto de miles (en es-ES, por defecto 1500 saldría sin punto)
+const euros = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2, minimumFractionDigits: 0, useGrouping: 'always' });
+const potNumber = new Intl.NumberFormat('es-ES', { maximumFractionDigits: 2, useGrouping: 'always' });
 
 const storage = {
   get(key) {
@@ -27,7 +34,7 @@ class App {
     this.scheduleService = null;
     this.currentParticipant = null;
     this.hasAdmin = false;
-    this.confirming = false;
+    this.pendingPredictions = null;
     this.elements = {};
   }
 
@@ -39,11 +46,14 @@ class App {
 
     this.cacheElements();
     this.bindEvents();
+    this.setupStadium();
+    this.setupInstall();
     await this.loadData();
     await this.ensureRealJourney();
 
     this.restoreParticipant();
     this.render();
+    if (window.location.hash === '#admin') this.scrollToAdmin();
 
     this.dataService.subscribeToGame((data) => {
       if (data) this.updateFromData(data);
@@ -100,7 +110,11 @@ class App {
       matchesDisplay: $('matches-display'),
       participantsContainer: $('participants-display'),
       predictionForm: $('prediction-form'),
-      submitButton: $('submit-predictions'),
+      confirmDialog: $('confirm-dialog'),
+      confirmList: $('confirm-list'),
+      confirmOk: $('confirm-ok'),
+      confirmCancel: $('confirm-cancel'),
+      confirmError: $('confirm-error'),
       participantName: $('participant-name'),
       joinForm: $('join-form'),
       joinSection: $('join-section'),
@@ -111,6 +125,8 @@ class App {
       predictionsSection: $('predictions-section'),
       adminSection: $('admin-section'),
       adminPanel: $('admin-panel'),
+      adminExit: $('admin-exit'),
+      adminLink: $('admin-link'),
       toastContainer: $('toast-container')
     };
   }
@@ -130,9 +146,23 @@ class App {
       if (button) this.selectMe(button.dataset.pickPlayer);
     });
 
-    el.notMe?.addEventListener('click', () => this.forgetMe());
+    el.notMe?.addEventListener('click', () => this.exitUser());
+    el.adminExit?.addEventListener('click', () => this.leaveAdmin());
 
     el.predictionForm?.addEventListener('submit', (e) => this.handlePrediction(e));
+
+    el.confirmOk?.addEventListener('click', () => this.savePredictions());
+    el.confirmCancel?.addEventListener('click', () => this.closeConfirm());
+    // Ventanas: Esc o pulsar fuera de la tarjeta las cierra con su animación
+    document.querySelectorAll('dialog.confirm').forEach(dialog => {
+      dialog.addEventListener('cancel', (e) => {
+        e.preventDefault();
+        this.closeDialog(dialog);
+      });
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) this.closeDialog(dialog);
+      });
+    });
 
     el.adminPanel?.addEventListener('click', (e) => {
       // Los botones de envío de formulario se gestionan en 'submit' (también con Intro)
@@ -153,11 +183,15 @@ class App {
         return;
       }
       if (e.target.getAttribute('aria-invalid') === 'true') this.clearFieldError(e.target);
+      if (e.target.name === 'pot') this.formatPotInput(e.target);
       const row = e.target.closest('[data-admin-row]');
       if (row) row.dataset.dirty = '1';
     });
 
-    window.addEventListener('hashchange', () => this.renderAdmin(true));
+    window.addEventListener('hashchange', () => {
+      this.renderAdmin(true);
+      if (window.location.hash === '#admin') this.scrollToAdmin();
+    });
 
     // Avisar antes de salir con marcadores escritos sin guardar
     window.addEventListener('beforeunload', (e) => {
@@ -214,11 +248,19 @@ class App {
   forgetMe(rerender = true) {
     storage.remove(ME_KEY);
     this.currentParticipant = null;
-    this.confirming = false;
+    this.pendingPredictions = null;
+    if (this.elements.confirmDialog?.open) this.elements.confirmDialog.close();
     if (this.elements.joinSection) this.elements.joinSection.style.display = '';
     if (this.elements.mePanel) this.elements.mePanel.hidden = true;
     if (this.elements.predictionsSection) this.elements.predictionsSection.style.display = 'none';
     if (rerender) this.render();
+  }
+
+  // Volver al menú principal: la portada con la lista de nombres
+  exitUser() {
+    this.forgetMe();
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    document.getElementById('main')?.focus({ preventScroll: true });
   }
 
   showPredictions() {
@@ -233,7 +275,11 @@ class App {
     toast.className = `toast ${type}`;
     toast.textContent = message;
     this.elements.toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 3600);
+    setTimeout(() => {
+      toast.classList.add('is-leaving');
+      toast.addEventListener('animationend', () => toast.remove(), { once: true });
+      setTimeout(() => toast.remove(), 400);
+    }, 3600);
   }
 
   setJoinError(message) {
@@ -299,19 +345,7 @@ class App {
     return matches.length > 0 && matches.every(m => participant?.predictions?.[m.id]);
   }
 
-  setConfirming(value) {
-    this.confirming = value;
-    const button = this.elements.submitButton;
-    if (!button) return;
-    button.classList.toggle('is-confirming', value);
-    button.textContent = value ? 'Confirmar: ya no se podrán cambiar' : 'Guardar pronósticos';
-    const status = document.getElementById('picks-status');
-    if (status) status.textContent = value ? 'Pulsa otra vez para confirmar. Después ya no se podrán cambiar.' : '';
-    clearTimeout(this.confirmTimer);
-    if (value) this.confirmTimer = setTimeout(() => this.setConfirming(false), 6000);
-  }
-
-  async handlePrediction(e) {
+  handlePrediction(e) {
     e.preventDefault();
     if (!this.currentParticipant) return;
 
@@ -333,34 +367,101 @@ class App {
     }
 
     if (missing.length > 0) {
-      this.setConfirming(false);
       missing.forEach(input => input.setAttribute('aria-invalid', 'true'));
       this.setFieldError(missing[0], 'Pon el marcador de los tres partidos');
       return;
     }
 
-    if (!this.confirming) {
-      this.setConfirming(true);
+    this.pendingPredictions = predictions;
+    this.openConfirm(predictions);
+  }
+
+  // Ventana con el resumen de los tres marcadores antes de guardarlos para siempre
+  openConfirm(predictions) {
+    const dialog = this.elements.confirmDialog;
+    if (!dialog?.showModal) {
+      if (window.confirm('¿Guardar tus pronósticos? Solo se guardan una vez.')) this.savePredictions();
       return;
     }
+    this.elements.confirmList.innerHTML = this.gameManager.getMatches()
+      .filter(m => predictions[m.id])
+      .map(m => `
+        <li class="confirm-row">
+          <span class="confirm-team">${this.crest(m.team1Logo)}<span>${this.esc(m.team1)}</span></span>
+          <span class="confirm-score">${predictions[m.id].score1}<span class="board-dash">-</span>${predictions[m.id].score2}</span>
+          <span class="confirm-team confirm-team--away"><span>${this.esc(m.team2)}</span>${this.crest(m.team2Logo)}</span>
+        </li>`).join('');
+    this.setConfirmError('');
+    this.openDialog(dialog);
+  }
 
-    this.setConfirming(false);
-    const button = this.elements.submitButton;
-    if (button) {
-      button.disabled = true;
-      button.textContent = 'Guardando…';
+  closeConfirm() {
+    return this.closeDialog(this.elements.confirmDialog);
+  }
+
+  openDialog(dialog) {
+    if (!dialog?.showModal) return;
+    this.dialogSeq = (this.dialogSeq || 0) + 1;
+    dialog.classList.remove('is-closing');
+    dialog.showModal();
+  }
+
+  // Cierra con su animación de salida; devuelve una promesa que se cumple al cerrarse
+  closeDialog(dialog) {
+    if (!dialog?.open) return Promise.resolve();
+    const seq = (this.dialogSeq = (this.dialogSeq || 0) + 1);
+    return new Promise(resolve => {
+      const done = () => {
+        // Si se ha vuelto a abrir mientras tanto, no se toca
+        if (seq === this.dialogSeq && dialog.open) {
+          dialog.classList.remove('is-closing');
+          dialog.close();
+        }
+        resolve();
+      };
+      dialog.classList.add('is-closing');
+      dialog.addEventListener('animationend', done, { once: true });
+      setTimeout(done, 250);
+    });
+  }
+
+  setConfirmError(message) {
+    const error = this.elements.confirmError;
+    if (!error || !this.elements.confirmDialog?.open) {
+      if (message) this.showToast(message, 'error');
+      return;
     }
+    error.textContent = message || '';
+    error.hidden = !message;
+  }
+
+  async savePredictions() {
+    const predictions = this.pendingPredictions;
+    if (!predictions || !this.currentParticipant) return;
+    const { confirmOk: ok, confirmCancel: cancel } = this.elements;
+    if (ok) {
+      ok.disabled = true;
+      ok.textContent = 'Guardando…';
+    }
+    if (cancel) cancel.disabled = true;
+    this.setConfirmError('');
     try {
       const data = await this.dataService.submitPredictions(this.currentParticipant.id, predictions);
+      this.pendingPredictions = null;
+      await this.closeConfirm();
+      this.sealing = true;
       this.updateFromData(data);
       this.showToast('Pronósticos guardados');
+      document.getElementById('main')?.focus({ preventScroll: true });
     } catch (error) {
-      this.showToast(error.message, 'error');
+      this.setConfirmError(error.message);
     } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = 'Guardar pronósticos';
+      this.sealing = false;
+      if (ok) {
+        ok.disabled = false;
+        ok.textContent = 'Sí, guardar';
       }
+      if (cancel) cancel.disabled = false;
     }
   }
 
@@ -400,6 +501,99 @@ class App {
     }
   }
 
+  // Volver al menú principal: se oculta el panel; la sesión sigue abierta en este dispositivo
+  leaveAdmin() {
+    if (window.location.hash === '#admin') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    this.renderAdmin(true);
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    document.getElementById('main')?.focus({ preventScroll: true });
+  }
+
+  scrollToAdmin() {
+    this.elements.adminSection?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
+  }
+
+  // ---------- Portada: valla LED ----------
+
+  // Se puede pausar (y se recuerda en este dispositivo); fuera de pantalla se para sola
+  setupStadium() {
+    const stadium = document.getElementById('stadium');
+    const button = document.getElementById('led-pause');
+    if (!stadium || !button) return;
+    const setPaused = (paused) => {
+      stadium.classList.toggle('is-paused', paused);
+      button.setAttribute('aria-pressed', String(paused));
+      const video = stadium.querySelector('video');
+      if (video) paused ? video.pause() : video.play().catch(() => {});
+    };
+    setPaused(storage.get(MOTION_KEY) === 'paused');
+    button.addEventListener('click', () => {
+      const paused = !stadium.classList.contains('is-paused');
+      setPaused(paused);
+      storage.set(MOTION_KEY, paused ? 'paused' : 'play');
+    });
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([entry]) => {
+        stadium.classList.toggle('is-offscreen', !entry.isIntersecting);
+      }).observe(stadium);
+    }
+  }
+
+  // ---------- App instalable ----------
+
+  // Android/Chrome: su propio aviso sale solo y el botón queda de reserva.
+  // iPhone: no hay aviso posible; la tarjeta con los pasos de Safari se abre sola la primera vez.
+  setupInstall() {
+    const box = document.getElementById('install');
+    const button = document.getElementById('install-button');
+    if (!box || !button) return;
+    const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+    if (standalone) return;
+    const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const dialog = document.getElementById('install-dialog');
+
+    if (ios) {
+      box.hidden = false;
+      if (!storage.get(INSTALL_TIP_KEY)) {
+        storage.set(INSTALL_TIP_KEY, 'shown');
+        setTimeout(() => {
+          if (!document.querySelector('dialog[open]')) this.openDialog(dialog);
+        }, 1500);
+      }
+    }
+
+    // Sin preventDefault: así Chrome enseña su aviso de instalación por su cuenta
+    window.addEventListener('beforeinstallprompt', (e) => {
+      this.installPrompt = e;
+      box.hidden = false;
+    });
+    window.addEventListener('appinstalled', () => {
+      this.installPrompt = null;
+      box.hidden = true;
+    });
+
+    button.addEventListener('click', async () => {
+      if (ios) {
+        this.openDialog(dialog);
+        return;
+      }
+      const prompt = this.installPrompt;
+      this.installPrompt = null;
+      if (!prompt) return;
+      try {
+        prompt.prompt();
+        await prompt.userChoice;
+      } catch (e) {}
+      // Si vuelve a ser instalable, Chrome lanza otro beforeinstallprompt y el botón reaparece
+      box.hidden = true;
+    });
+    document.getElementById('install-close')?.addEventListener('click', () => {
+      this.closeDialog(document.getElementById('install-dialog'));
+    });
+  }
+
   async handleAdminClick(e) {
     const button = e.target.closest('[data-admin-action]');
     if (!button) return;
@@ -420,7 +614,7 @@ class App {
     if (action === 'logout') {
       await this.adminCall({ action: 'logout' });
       storage.remove(ADMIN_KEY);
-      this.renderAdmin(true);
+      this.leaveAdmin();
       return this.showToast('Sesión de administrador cerrada');
     }
 
@@ -430,7 +624,7 @@ class App {
     }
 
     if (action === 'setPot') {
-      return this.adminCall({ action, pot: Number(val('pot')) }, 'Bote actualizado');
+      return this.adminCall({ action, pot: this.parsePot(val('pot')) }, 'Bote actualizado');
     }
 
     if (action === 'setMatch') {
@@ -480,6 +674,7 @@ class App {
   }
 
   render() {
+    this.changes = this.collectChanges();
     this.renderJourneyStatus();
     this.renderHero();
     this.renderMatches();
@@ -487,6 +682,30 @@ class App {
     this.renderRoster();
     this.renderAdmin();
     this.updatePotDisplay();
+    this.changes = null;
+  }
+
+  // Goles y eliminaciones desde el último render, para animarlos una sola vez
+  collectChanges() {
+    const matches = this.gameManager.getMatches();
+    const participants = this.gameManager.participants;
+    const scores = {};
+    const out = new Set();
+    if (this.lastScores) {
+      for (const m of matches) {
+        const before = this.lastScores[m.id];
+        const now = m.getScore();
+        if (before && now && before !== now) scores[m.id] = before;
+      }
+    }
+    if (this.lastActive) {
+      for (const p of participants) {
+        if (this.lastActive[p.id] === true && !p.active) out.add(p.id);
+      }
+    }
+    this.lastScores = Object.fromEntries(matches.map(m => [m.id, m.getScore()]));
+    this.lastActive = Object.fromEntries(participants.map(p => [p.id, p.active]));
+    return { scores, out };
   }
 
   // ---------- Utilidades de presentación ----------
@@ -520,6 +739,15 @@ class App {
     return `${minutes} min`;
   }
 
+  // Marcador con dígitos sueltos: el que cambia cae como en un videomarcador
+  scoreHTML(match) {
+    const before = this.changes?.scores[match.id]?.split('-') || [];
+    const digit = (value, old) => (old !== undefined && old !== String(value)
+      ? `<span class="digit is-changed"><span class="digit-old" aria-hidden="true">${this.esc(old)}</span><span class="digit-new">${this.esc(value)}</span></span>`
+      : `<span class="digit">${this.esc(value)}</span>`);
+    return `${digit(match.score1, before[0])}<span class="board-dash">-</span>${digit(match.score2, before[1])}`;
+  }
+
   firstMatch() {
     return this.gameManager.getMatches()
       .filter(m => m.date)
@@ -533,10 +761,11 @@ class App {
     const status = this.scheduleService.getJourneyStatus();
     const first = this.firstMatch();
     const pill = this.elements.journeyStatus;
-    pill.className = `state-pill state-${status}`;
+    const left = first ? first.date - new Date() : Infinity;
+    pill.className = `state-pill state-${status}${status === 'open' && left < CLOSING_SOON_MS ? ' state-closing' : ''}`;
 
     if (status === 'open' && first) {
-      pill.textContent = `Abierta, cierra en ${this.countdown(first.date - new Date())}`;
+      pill.textContent = `Abierta, cierra en ${this.countdown(left)}`;
     } else if (status === 'live' || status === 'locked') {
       pill.innerHTML = '<span class="live-dot" aria-hidden="true"></span>En juego';
     } else if (status === 'finished') {
@@ -565,17 +794,22 @@ class App {
       const total = this.gameManager.getMatches().length;
       meTitle.innerHTML = `Hola, <span translate="no">${this.esc(me.name)}</span>.`;
       meTitle.className = `hero-title${this.nameClass(me)}`;
+      let card = '';
       if (!me.active) {
+        card = 'red';
         meSub.textContent = 'Esta jornada te toca mirar desde la grada. El martes empieza otra.';
       } else if (this.scheduleService.canMakePredictions()) {
+        if (picks < total) card = 'yellow';
         meSub.textContent = picks === total
           ? 'Tus resultados están guardados. Si te has equivocado, díselo al administrador.'
           : 'Pon tus tres resultados antes del primer pitido. Solo se guardan una vez.';
       } else if (picks < total) {
+        card = 'yellow';
         meSub.textContent = 'La jornada empezó sin tus resultados. Habla con el administrador.';
       } else {
         meSub.textContent = 'Sigues vivo. Cruza los dedos.';
       }
+      meSub.dataset.card = card;
     }
 
     const panel = document.getElementById('kickoff');
@@ -588,12 +822,16 @@ class App {
     const focus = live || first;
     let big;
     let caption;
+    let bigClass = '';
     if (live) {
       const last = [...(live.events || [])].reverse().find(e => e.minute);
-      big = live.getScore() ? live.getScore().replace('-', ' - ') : 'En juego';
+      big = live.getScore() ? this.scoreHTML(live) : 'En juego';
+      if (this.changes?.scores[live.id]) bigClass = ' is-goal';
       caption = last ? `En directo, minuto ${this.esc(last.minute)}` : 'En directo';
     } else if (status === 'open') {
-      big = this.countdown(first.date - new Date());
+      const left = first.date - new Date();
+      big = this.countdown(left);
+      if (left < CLOSING_SOON_MS) bigClass = ' is-closing';
       caption = `Primer pitido: ${this.kickoffLabel(first.date)}`;
     } else if (status === 'finished') {
       big = 'Final';
@@ -606,7 +844,7 @@ class App {
     const label = live ? 'Ahora mismo' : status === 'open' ? 'Empieza en' : 'Jornada';
     panel.innerHTML = `
       <p class="kickoff-label">${label}</p>
-      <p class="kickoff-big">${big}</p>
+      <p class="kickoff-big${bigClass}">${big}</p>
       <div class="kickoff-match">
         <div class="kickoff-side">${this.crest(focus.team1Logo, 'crest--lg', true)}<span>${this.esc(focus.team1)}</span></div>
         <span class="kickoff-vs">vs</span>
@@ -643,7 +881,7 @@ class App {
     this.elements.matchesContainer.innerHTML = !canPredict
       ? '<p class="empty">La jornada ya ha empezado. Los pronósticos están cerrados.</p>'
       : locked
-        ? matches.map(match => this.renderLockedPick(match, this.currentParticipant.getPrediction(match.id))).join('')
+        ? matches.map((match, i) => this.renderLockedPick(match, this.currentParticipant.getPrediction(match.id), i)).join('')
         : matches.map(match => this.renderPick(match)).join('');
 
     const actions = this.elements.predictionForm?.querySelector('.picks-actions');
@@ -652,7 +890,7 @@ class App {
     if (sub) {
       sub.textContent = locked
         ? 'Guardados. Si te has equivocado, díselo al administrador.'
-        : 'Solo se pueden guardar una vez, así que revísalos antes de confirmar.';
+        : 'Marca los goles de cada equipo con + y −. Cuando tengas los tres partidos, pulsa Guardar pronósticos.';
     }
 
     // Con la jornada empezada, los pronósticos de cada uno ya se ven en Supervivientes
@@ -681,7 +919,7 @@ class App {
     const stepper = (side, team, value) => `
       <div class="stepper">
         <button type="button" class="step" data-step="-1" aria-label="Un gol menos para ${this.esc(team)}">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" max="20" name="${side}-${this.esc(match.id)}" value="${value ?? ''}" placeholder="–" autocomplete="off" class="score-input" aria-label="Goles de ${this.esc(team)}" aria-describedby="picks-error">
+        <input type="number" inputmode="numeric" min="0" max="20" name="${side}-${this.esc(match.id)}" value="${value ?? 0}" autocomplete="off" class="score-input" aria-label="Goles de ${this.esc(team)}" aria-describedby="picks-error">
         <button type="button" class="step" data-step="1" aria-label="Un gol más para ${this.esc(team)}">+</button>
       </div>`;
 
@@ -704,20 +942,24 @@ class App {
     container.querySelectorAll('.score-input').forEach(input => {
       input.addEventListener('input', () => {
         input.dataset.dirty = '1';
-        this.clearFieldError(input);
-        if (this.confirming) this.setConfirming(false);
-      });
+        this.clearFieldError(input);      });
     });
     container.querySelectorAll('.step').forEach(button => {
       button.addEventListener('click', () => {
         const input = button.parentElement.querySelector('.score-input');
         const step = Number(button.dataset.step);
-        const current = input.value === '' ? 0 : Number(input.value);
+        const before = input.value;
+        const current = before === '' ? 0 : Number(before);
         input.value = Math.min(20, Math.max(0, current + step));
         input.dataset.dirty = '1';
         this.clearFieldError(input);
-        if (this.confirming) this.setConfirming(false);
-      });
+        // El número nuevo entra desde arriba al sumar y desde abajo al restar
+        if (input.value !== before && input.animate && !prefersReducedMotion()) {
+          input.animate([
+            { transform: `translateY(${step > 0 ? -40 : 40}%)`, opacity: 0.2 },
+            { transform: 'none', opacity: 1 }
+          ], { duration: 180, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+        }      });
     });
   }
 
@@ -733,12 +975,11 @@ class App {
     const state = isLive
       ? '<span class="live-dot" aria-hidden="true"></span>En directo'
       : isFinished ? 'Final' : 'Por jugar';
-    const board = hasScore
-      ? `${match.score1}<span class="board-dash">-</span>${match.score2}`
-      : `<span class="board-time">${time}</span>`;
+    const board = hasScore ? this.scoreHTML(match) : `<span class="board-time">${time}</span>`;
+    const goal = Boolean(this.changes?.scores[match.id]);
 
     return `
-      <article class="fixture ${index === 0 ? 'fixture--lead' : ''} ${isLive ? 'is-live' : ''} ${isFinished ? 'is-final' : ''}" data-match-id="${this.esc(match.id)}">
+      <article class="fixture ${index === 0 ? 'fixture--lead' : ''} ${isLive ? 'is-live' : ''} ${isFinished ? 'is-final' : ''} ${goal ? 'is-goal' : ''}" data-match-id="${this.esc(match.id)}">
         <header class="fixture-meta">
           <span>${this.kickoffLabel(match.date)}</span>
           <span class="fixture-state">${state}</span>
@@ -788,13 +1029,26 @@ class App {
 
     const started = !this.scheduleService.canMakePredictions();
     const winner = started && alive === 1 && participants.length > 1;
+    const container = this.elements.participantsContainer;
+    const out = this.changes?.out || new Set();
 
-    this.elements.participantsContainer.innerHTML = participants.map(p => {
+    // FLIP: posiciones antes de reordenar, para que los eliminados bajen a la grada
+    const animateMove = out.size > 0 && !prefersReducedMotion();
+    const before = new Map();
+    if (animateMove) {
+      container.querySelectorAll('[data-participant-id]').forEach(row => {
+        before.set(row.dataset.participantId, row.getBoundingClientRect());
+      });
+    }
+    this.prevChips = this.lastChips;
+    this.lastChips = {};
+
+    container.innerHTML = participants.map((p, i) => {
       const isMe = p.id === this.currentParticipant?.id;
       const outMatch = p.eliminatedInMatch ? this.gameManager.getMatch(p.eliminatedInMatch) : null;
       const outText = outMatch ? `${this.esc(outMatch.team1)} - ${this.esc(outMatch.team2)}` : 'esta jornada';
       const stateText = !p.active ? `Fuera en ${outText}` : winner ? 'Único superviviente' : 'Sigue vivo';
-      const classes = ['player', p.active ? '' : 'player--out', isMe ? 'player--me' : '', winner && p.active ? 'player--winner' : ''].join(' ');
+      const classes = ['player', p.active ? '' : 'player--out', isMe ? 'player--me' : '', winner && p.active ? 'player--winner' : '', out.has(p.id) ? 'is-just-out' : ''].join(' ');
       return `
         <li class="${classes}" data-participant-id="${this.esc(p.id)}">
           <span class="monogram" aria-hidden="true">${this.esc(p.name.trim().charAt(0).toUpperCase())}</span>
@@ -802,26 +1056,74 @@ class App {
             <span class="player-name${this.nameClass(p)}" title="${this.esc(p.name)}"><span translate="no">${this.esc(p.name)}</span>${isMe ? ' <em>Tú</em>' : ''}</span>
             <span class="player-state">${stateText}</span>
           </div>
-          <div class="player-picks">${this.renderParticipantPredictions(p)}</div>
+          <div class="player-picks">${this.renderParticipantPredictions(p, i)}</div>
         </li>`;
     }).join('');
+
+    if (!animateMove) return;
+    container.querySelectorAll('[data-participant-id]').forEach(row => {
+      const from = before.get(row.dataset.participantId);
+      if (!from || !row.animate) return;
+      const to = row.getBoundingClientRect();
+      const dx = from.left - to.left;
+      const dy = from.top - to.top;
+      if (!dx && !dy) return;
+      // Primero la roja, luego el paseíllo a su sitio
+      row.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        { duration: 560, delay: 420, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'backwards' }
+      );
+    });
   }
 
-  renderParticipantPredictions(participant) {
+  // Cada chip dice cómo va ese pronóstico: acertado, va acertando, va fallando o el que le echó
+  renderParticipantPredictions(participant, row = 0) {
     const matches = this.gameManager.getMatches();
     return matches.map(match => {
       const pred = participant.predictions[match.id];
       if (!pred) return '<span class="chip chip--empty"><span aria-hidden="true">-</span><span class="sr-only">Sin pronóstico</span></span>';
-      const settled = match.isFinished();
-      const isCorrect = settled && pred.score1 === match.score1 && pred.score2 === match.score2;
-      const cls = settled ? (isCorrect ? 'chip--hit' : 'chip--miss') : '';
-      return `<span class="chip ${cls}" title="${this.esc(match.team1)} - ${this.esc(match.team2)}">${pred.score1}-${pred.score2}</span>`;
+      const same = pred.score1 === match.score1 && pred.score2 === match.score2;
+      let state = '';
+      let note = '';
+      if (match.isFinished()) {
+        if (same) [state, note] = ['hit', 'acertado'];
+        else if (participant.eliminatedInMatch === match.id) [state, note] = ['out', 'le eliminó'];
+        else [state, note] = ['miss', 'fallado'];
+      } else if (match.isLive() && match.getScore()) {
+        [state, note] = same ? ['on', 'de momento acierta'] : ['off', 'de momento falla'];
+      }
+      const key = `${participant.id}:${match.id}`;
+      this.lastChips[key] = state;
+      const flip = Boolean(state && this.prevChips && key in this.prevChips && this.prevChips[key] !== state);
+      const delay = Math.min(row * 40, 320) + (this.changes?.scores[match.id] ? 280 : 0);
+      const cls = ['chip', state && `chip--${state}`, flip && 'is-flip'].filter(Boolean).join(' ');
+      return `<span class="${cls}"${flip ? ` style="--d:${delay}ms"` : ''} title="${this.esc(match.team1)} - ${this.esc(match.team2)}">${pred.score1}-${pred.score2}${note ? `<span class="sr-only">, ${note}</span>` : ''}</span>`;
     }).join('');
   }
   // ---------- Lista de nombres ----------
 
   nameClass(p) {
     return p?.color ? ` name--${this.esc(p.color)}` : '';
+  }
+
+  // Bote con puntos de miles mientras se escribe (1.234.567,50), sin mover el cursor de sitio
+  formatPotInput(input) {
+    const raw = input.value;
+    const caret = input.selectionStart ?? raw.length;
+    const kept = (text) => text.replace(/[^\d,]/g, '');
+    const typedBefore = kept(raw.slice(0, caret)).length;
+    const [intPart = '', ...rest] = kept(raw).split(',');
+    const decimals = rest.length ? `,${rest.join('').slice(0, 2)}` : '';
+    input.value = (intPart ? potNumber.format(Number(intPart)) : '') + decimals;
+    let pos = 0;
+    for (let seen = 0; pos < input.value.length && seen < typedBefore; pos++) {
+      if (/[\d,]/.test(input.value[pos])) seen++;
+    }
+    input.setSelectionRange(pos, pos);
+  }
+
+  parsePot(value) {
+    return Number(String(value ?? '').replace(/\./g, '').replace(',', '.')) || 0;
   }
 
   normalize(value) {
@@ -858,9 +1160,9 @@ class App {
       </li>`).join('');
   }
 
-  renderLockedPick(match, pred) {
+  renderLockedPick(match, pred, index = 0) {
     return `
-      <div class="pick pick--locked" data-match-id="${this.esc(match.id)}">
+      <div class="pick pick--locked${this.sealing ? ' is-sealing' : ''}" style="--i:${index}" data-match-id="${this.esc(match.id)}">
         <div class="pick-team pick-home">${this.crest(match.team1Logo)}<span class="pick-name">${this.esc(match.team1)}</span></div>
         <div class="pick-score pick-score--locked">
           <span class="locked-num">${pred ? pred.score1 : '-'}</span>
@@ -880,8 +1182,10 @@ class App {
     if (!section || !panel) return;
 
     const token = this.adminToken();
-    const wanted = token || window.location.hash === '#admin';
+    const wanted = window.location.hash === '#admin';
     section.hidden = !wanted;
+    // Con sesión abierta, el pie enlaza con el panel para volver a entrar
+    if (this.elements.adminLink) this.elements.adminLink.hidden = !token || wanted;
     if (!wanted) return;
 
     // No pisar lo que el administrador está escribiendo
@@ -951,8 +1255,10 @@ class App {
       <div class="admin-card" data-admin-row="pot">
         <h3 class="admin-title">Bote</h3>
         <div class="admin-inline">
-          <input class="admin-pot" type="number" inputmode="decimal" min="0" step="1" name="pot" value="${this.gameManager.pot || 0}" autocomplete="off" aria-label="Bote en euros">
-          <span>€</span>
+          <span class="admin-money">
+            <input class="admin-pot" type="text" inputmode="decimal" name="pot" value="${potNumber.format(this.gameManager.pot || 0)}" autocomplete="off" spellcheck="false" aria-label="Bote en euros">
+            <span aria-hidden="true">€</span>
+          </span>
           <button type="button" class="btn btn-small" data-admin-action="setPot">Guardar</button>
         </div>
       </div>
