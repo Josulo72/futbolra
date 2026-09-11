@@ -1,4 +1,4 @@
-const Match = require('../../src/core/Match');
+const Match = require('../../public/src/core/Match');
 
 describe('Match', () => {
   let match;

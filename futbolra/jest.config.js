@@ -3,8 +3,8 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
   collectCoverageFrom: [
-    'src/**/*.js',
-    '!src/**/*.test.js'
+    'public/src/**/*.js',
+    '!public/src/**/*.test.js'
   ],
   coverageDirectory: 'coverage',
   verbose: true

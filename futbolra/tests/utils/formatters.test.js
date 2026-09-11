@@ -1,4 +1,4 @@
-const formatters = require('../../src/utils/formatters');
+const formatters = require('../../public/src/utils/formatters');
 
 describe('formatters', () => {
   describe('formatDate', () => {

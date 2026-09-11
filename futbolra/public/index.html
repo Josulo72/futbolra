@@ -106,41 +106,80 @@
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
 
-  <script type="module">
-    import { GameManager } from '../src/core/GameManager.js';
-    import { DataService } from '../src/services/DataService.js';
-    import { ScheduleService } from '../src/services/ScheduleService.js';
-    import { App } from '../src/ui/App.js';
-
-    // Browser-compatible data service using localStorage
+  <script src="src/utils/formatters.js"></script>
+  <script src="src/core/Match.js"></script>
+  <script src="src/core/Participant.js"></script>
+  <script src="src/core/GameManager.js"></script>
+  <script src="src/services/ScheduleService.js"></script>
+  <script src="src/services/FixturesService.js"></script>
+  <script src="src/ui/App.js"></script>
+  <script>
+    // Datos compartidos entre todos a través de /api/game (Netlify Functions + Blobs)
     const browserDataService = {
+      lastJson: null,
+
       async init() {},
-      
-      async saveGameManager(gameManager) {
-        const data = gameManager.toJSON();
-        localStorage.setItem('futbolra-game', JSON.stringify(data));
+
+      emit(data) {
+        const json = JSON.stringify(data);
+        if (json === this.lastJson) return;
+        this.lastJson = json;
         window.dispatchEvent(new CustomEvent('futbolra-update', { detail: data }));
       },
-      
-      async loadGameManager() {
-        const data = localStorage.getItem('futbolra-game');
-        return data ? JSON.parse(data) : null;
+
+      async saveGameManager(gameManager) {
+        const data = gameManager.toJSON();
+        let meId = null;
+        try { meId = localStorage.getItem('futbolra-me'); } catch (e) {}
+        const participant = data.participants.find(p => p.id === meId);
+        const res = await fetch('/api/game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participant,
+            journey: {
+              matches: data.matches,
+              currentRound: data.currentRound,
+              journeyStartDate: data.journeyStartDate,
+              journeyEndDate: data.journeyEndDate
+            }
+          })
+        });
+        if (!res.ok) throw new Error('No se ha podido guardar. Inténtalo de nuevo.');
+        const saved = await res.json();
+        this.lastJson = JSON.stringify(saved);
+        return saved;
       },
-      
+
+      async loadGameManager() {
+        const res = await fetch('/api/game', { cache: 'no-store' });
+        if (!res.ok) throw new Error('No se ha podido cargar la porra');
+        const data = await res.json();
+        this.lastJson = JSON.stringify(data);
+        return data;
+      },
+
       subscribeToGame(callback) {
         const handler = (e) => callback(e.detail);
         window.addEventListener('futbolra-update', handler);
-        return () => window.removeEventListener('futbolra-update', handler);
+        const timer = setInterval(async () => {
+          try {
+            const res = await fetch('/api/game', { cache: 'no-store' });
+            if (res.ok) this.emit(await res.json());
+          } catch (e) {}
+        }, 10000);
+        return () => {
+          clearInterval(timer);
+          window.removeEventListener('futbolra-update', handler);
+        };
       },
-      
+
       unsubscribeFromGame(callback) {},
-      
-      async savePot(amount) {
-        localStorage.setItem('futbolra-pot', amount.toString());
-      },
-      
+
+      async savePot(amount) {},
+
       async loadPot() {
-        return parseInt(localStorage.getItem('futbolra-pot') || '0', 10);
+        return null;
       }
     };
 
@@ -148,10 +187,9 @@
       const gameManager = new GameManager();
       const scheduleService = new ScheduleService();
       scheduleService.setGameManager(gameManager);
-      scheduleService.startAutoSchedule();
 
       const app = new App();
-      await app.init(gameManager, browserDataService, scheduleService);
+      await app.init(gameManager, browserDataService, scheduleService, new FixturesService());
       
       window.app = app;
       window.gameManager = gameManager;

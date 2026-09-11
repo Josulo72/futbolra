@@ -1,6 +1,6 @@
-const { ScheduleService } = require('../../src/services/ScheduleService');
-const GameManager = require('../../src/core/GameManager');
-const Match = require('../../src/core/Match');
+const { ScheduleService } = require('../../public/src/services/ScheduleService');
+const GameManager = require('../../public/src/core/GameManager');
+const Match = require('../../public/src/core/Match');
 
 describe('ScheduleService', () => {
   let scheduleService;

@@ -1,4 +1,4 @@
-const validators = require('../../src/utils/validators');
+const validators = require('../../public/src/utils/validators');
 
 describe('validators', () => {
   describe('isValidScore', () => {

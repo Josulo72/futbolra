@@ -67,7 +67,7 @@ class DataService {
     }
   }
 
-  subscribeToGame(callback) {
+  async subscribeToGame(callback) {
     if (this.useLocalStorage) {
       const listener = (e) => {
         if (e.key === 'futbolra-game' && e.newValue) {

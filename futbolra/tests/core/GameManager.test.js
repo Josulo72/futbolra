@@ -1,6 +1,6 @@
-const GameManager = require('../../src/core/GameManager');
-const Match = require('../../src/core/Match');
-const Participant = require('../../src/core/Participant');
+const GameManager = require('../../public/src/core/GameManager');
+const Match = require('../../public/src/core/Match');
+const Participant = require('../../public/src/core/Participant');
 
 describe('GameManager', () => {
   let gameManager;

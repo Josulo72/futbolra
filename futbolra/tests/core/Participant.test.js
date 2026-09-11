@@ -1,5 +1,5 @@
-const Participant = require('../../src/core/Participant');
-const Match = require('../../src/core/Match');
+const Participant = require('../../public/src/core/Participant');
+const Match = require('../../public/src/core/Match');
 
 describe('Participant', () => {
   let participant;

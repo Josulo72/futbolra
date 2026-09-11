@@ -1,5 +1,5 @@
-const Match = require('./Match');
-const Participant = require('./Participant');
+const MatchClass = typeof require === 'function' ? require('./Match') : Match;
+const ParticipantClass = typeof require === 'function' ? require('./Participant') : Participant;
 
 class GameManager {
   constructor() {
@@ -13,7 +13,7 @@ class GameManager {
   }
 
   initializeJourney(matchesData) {
-    this.matches = matchesData.map(m => Match.fromJSON(m));
+    this.matches = matchesData.map(m => MatchClass.fromJSON(m));
     this.currentRound = this.matches[0]?.round || 1;
     this.journeyStartDate = this.matches[0]?.date ? new Date(this.matches[0].date) : null;
     this.journeyEndDate = this.matches[this.matches.length - 1]?.date ? new Date(this.matches[this.matches.length - 1].date) : null;
@@ -28,7 +28,7 @@ class GameManager {
   }
 
   addParticipant(name) {
-    const participant = new Participant({ name });
+    const participant = new ParticipantClass({ name });
     this.participants.push(participant);
     return participant;
   }
@@ -143,20 +143,20 @@ class GameManager {
   generateNextJourney() {
     const nextWeekend = this.getNextWeekendDate();
     const teams = [
-      { name: 'Real Madrid', logo: '/assets/logos/real-madrid.png' },
-      { name: 'FC Barcelona', logo: '/assets/logos/fc-barcelona.png' },
-      { name: 'SD Ponferradina', logo: '/assets/logos/sd-ponferradina.png' }
+      { name: 'Real Madrid', logo: 'assets/logos/real-madrid.svg' },
+      { name: 'FC Barcelona', logo: 'assets/logos/fc-barcelona.svg' },
+      { name: 'SD Ponferradina', logo: 'assets/logos/sd-ponferradina.svg' }
     ];
 
     const matches = teams.map((team, index) => {
       const matchDate = new Date(nextWeekend);
       matchDate.setDate(nextWeekend.getDate() + index);
       
-      return new Match({
+      return new MatchClass({
         team1: team.name,
         team2: index === 0 ? 'Oponente 1' : index === 1 ? 'Oponente 2' : 'Oponente 3',
         team1Logo: team.logo,
-        team2Logo: '/assets/logos/opponent.png',
+        team2Logo: 'assets/logos/opponent.svg',
         date: matchDate.toISOString(),
         time: `${15 + index * 2}:00`,
         round: this.currentRound + 1,
@@ -183,8 +183,8 @@ class GameManager {
 
   static fromJSON(data) {
     const manager = new GameManager();
-    manager.matches = data.matches?.map(m => Match.fromJSON(m)) || [];
-    manager.participants = data.participants?.map(p => Participant.fromJSON(p)) || [];
+    manager.matches = data.matches?.map(m => MatchClass.fromJSON(m)) || [];
+    manager.participants = data.participants?.map(p => ParticipantClass.fromJSON(p)) || [];
     manager.currentRound = data.currentRound || 0;
     manager.pot = data.pot || 0;
     manager.journeyLocked = data.journeyLocked || false;
