@@ -106,6 +106,9 @@ main:focus { outline: none; }
   line-height: 1;
 }
 .wordmark span { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) {
+  .wordmark:hover { color: var(--accent); }
+}
 
 .topbar-meta { display: flex; align-items: center; gap: 20px; min-width: 0; }
 
@@ -201,8 +204,10 @@ h1.hero-title { text-wrap: balance; }
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
+.roster li { max-width: 100%; }
 .roster-name {
   display: inline-flex; align-items: center; gap: 8px;
+  max-width: 100%;
   height: 40px; padding: 0 16px;
   border-radius: var(--radius-pill);
   border: 1px solid var(--line-strong);
@@ -215,7 +220,8 @@ h1.hero-title { text-wrap: balance; }
   .roster-name:hover { border-color: var(--accent); background: var(--bg-3); }
 }
 .roster-name.is-done { border-color: rgba(201, 242, 77, 0.3); }
-.roster-done { font-size: 11px; font-weight: 500; color: var(--accent); }
+.roster-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roster-done { flex: none; font-size: 11px; font-weight: 500; color: var(--accent); }
 .roster-empty { color: var(--text-2); font-size: 15px; padding: 8px 2px; }
 
 .join-form { margin-top: 24px; max-width: 460px; }
@@ -260,6 +266,9 @@ h1.hero-title { text-wrap: balance; }
   .btn-small:hover { border-color: var(--accent); }
 }
 .btn.is-confirming { background: #f2d04b; color: #231c05; }
+@media (hover: hover) and (pointer: fine) {
+  .btn.is-confirming:hover { background: #f7df79; }
+}
 
 /* Panel del primer partido */
 .kickoff {
@@ -392,6 +401,8 @@ h1.hero-title { text-wrap: balance; }
 .score-input:focus { outline: none; }
 .score-input:focus-visible { color: var(--accent); }
 .stepper:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.stepper:has(.score-input[aria-invalid="true"]) { border-color: var(--danger); }
+.picks-error { margin-top: 16px; text-align: right; }
 
 .picks-actions { display: flex; justify-content: flex-end; margin-top: 20px; }
 .pick-score--locked { gap: 14px; }
@@ -594,6 +605,9 @@ h1.hero-title { text-wrap: balance; }
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 .swatch.is-on { border-color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .swatch:not(.is-on):hover { border-color: var(--text-2); }
+}
 .swatch--none { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
 .swatch--lima { background: #c9f24d; }
 .swatch--amarillo { background: #f2d04b; }
@@ -722,6 +736,7 @@ h1.hero-title { text-wrap: balance; }
   .pick-score { justify-content: center; }
   .crest:not(.crest--lg) { width: 32px; height: 32px; }
   .picks-actions .btn { width: 100%; }
+  .picks-error { text-align: center; }
 
   .fixture-body { gap: 8px; }
   .fixture--lead .crest--lg { width: 64px; height: 64px; }

@@ -152,11 +152,21 @@ class App {
         });
         return;
       }
+      if (e.target.getAttribute('aria-invalid') === 'true') this.clearFieldError(e.target);
       const row = e.target.closest('[data-admin-row]');
       if (row) row.dataset.dirty = '1';
     });
 
     window.addEventListener('hashchange', () => this.renderAdmin(true));
+
+    // Avisar antes de salir con marcadores escritos sin guardar
+    window.addEventListener('beforeunload', (e) => {
+      const inputs = this.elements.matchesContainer?.querySelectorAll('.score-input[data-dirty]') || [];
+      if ([...inputs].some(input => input.value !== '')) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
   }
 
   async loadData() {
@@ -235,6 +245,24 @@ class App {
     error.hidden = !message;
   }
 
+  // Error junto al campo: el <p> se enlaza con aria-describedby
+  setFieldError(input, message) {
+    const error = input && document.getElementById(input.getAttribute('aria-describedby'));
+    if (!error) return this.showToast(message, 'error');
+    input.setAttribute('aria-invalid', 'true');
+    error.textContent = message;
+    error.hidden = false;
+    input.focus();
+  }
+
+  clearFieldError(input) {
+    input.removeAttribute('aria-invalid');
+    const error = document.getElementById(input.getAttribute('aria-describedby'));
+    if (!error) return;
+    error.textContent = '';
+    error.hidden = true;
+  }
+
   async addMe() {
     const name = this.elements.participantName?.value?.trim();
     if (!name) return;
@@ -277,6 +305,8 @@ class App {
     if (!button) return;
     button.classList.toggle('is-confirming', value);
     button.textContent = value ? 'Confirmar: ya no se podrán cambiar' : 'Guardar pronósticos';
+    const status = document.getElementById('picks-status');
+    if (status) status.textContent = value ? 'Pulsa otra vez para confirmar. Después ya no se podrán cambiar.' : '';
     clearTimeout(this.confirmTimer);
     if (value) this.confirmTimer = setTimeout(() => this.setConfirming(false), 6000);
   }
@@ -285,9 +315,10 @@ class App {
     e.preventDefault();
     if (!this.currentParticipant) return;
 
-    const formData = new FormData(e.target);
+    const form = e.target;
+    const formData = new FormData(form);
     const predictions = {};
-    let missing = 0;
+    const missing = [];
 
     for (const match of this.gameManager.getMatches()) {
       const home = formData.get(`home-${match.id}`);
@@ -295,16 +326,16 @@ class App {
       if (home === null || away === null) continue;
       const score1 = parseInt(home, 10);
       const score2 = parseInt(away, 10);
-      if (isNaN(score1) || isNaN(score2)) {
-        missing++;
-        continue;
-      }
+      if (isNaN(score1)) missing.push(form.elements[`home-${match.id}`]);
+      if (isNaN(score2)) missing.push(form.elements[`away-${match.id}`]);
+      if (isNaN(score1) || isNaN(score2)) continue;
       predictions[match.id] = { score1, score2 };
     }
 
-    if (missing > 0) {
+    if (missing.length > 0) {
       this.setConfirming(false);
-      this.showToast('Pon el marcador de los tres partidos', 'error');
+      missing.forEach(input => input.setAttribute('aria-invalid', 'true'));
+      this.setFieldError(missing[0], 'Pon el marcador de los tres partidos');
       return;
     }
 
@@ -378,7 +409,7 @@ class App {
 
     if (action === 'setup') {
       const code = val('code');
-      if (code !== val('code2')) return this.showToast('Los dos códigos no coinciden', 'error');
+      if (code !== val('code2')) return this.setFieldError(row.querySelector('[name="code2"]'), 'Los dos códigos no coinciden. Vuelve a escribir el segundo.');
       return this.adminOpenSession({ action: 'setup', code }, 'Código creado. Ya eres el administrador.');
     }
 
@@ -394,7 +425,7 @@ class App {
     }
 
     if (action === 'changeCode') {
-      if (val('newCode') !== val('newCode2')) return this.showToast('Los dos códigos nuevos no coinciden', 'error');
+      if (val('newCode') !== val('newCode2')) return this.setFieldError(row.querySelector('[name="newCode2"]'), 'Los dos códigos nuevos no coinciden. Vuelve a escribir el segundo.');
       return this.adminCall({ action, oldCode: val('oldCode'), newCode: val('newCode') }, 'Código cambiado. Los demás dispositivos tendrán que volver a entrar.');
     }
 
@@ -465,9 +496,10 @@ class App {
     return String(value ?? '').replace(/[&<>"']/g, c => map[c]);
   }
 
-  crest(src, name, size = '', eager = false) {
+  // Decorativo: el nombre del equipo siempre se ve al lado
+  crest(src, size = '', eager = false) {
     const loading = eager ? 'loading="eager" fetchpriority="high"' : 'loading="lazy"';
-    return `<img class="crest ${size}" src="${this.esc(src)}" alt="" ${loading} width="64" height="64" onerror="this.src='assets/logos/placeholder.svg'"><span class="sr-only">${this.esc(name)}</span>`;
+    return `<img class="crest ${size}" src="${this.esc(src)}" alt="" ${loading} width="64" height="64" onerror="this.src='assets/logos/placeholder.svg'">`;
   }
 
   kickoffLabel(date) {
@@ -483,9 +515,9 @@ class App {
     const days = Math.floor(ms / 86400000);
     const hours = Math.floor((ms % 86400000) / 3600000);
     const minutes = Math.floor((ms % 3600000) / 60000);
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}min`;
-    return `${minutes} min`;
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}min`;
+    return `${minutes} min`;
   }
 
   firstMatch() {
@@ -531,7 +563,7 @@ class App {
     if (me && meTitle && meSub) {
       const picks = Object.keys(me.predictions || {}).filter(id => this.gameManager.getMatch(id)).length;
       const total = this.gameManager.getMatches().length;
-      meTitle.textContent = `Hola, ${me.name}.`;
+      meTitle.innerHTML = `Hola, <span translate="no">${this.esc(me.name)}</span>.`;
       meTitle.className = `hero-title${this.nameClass(me)}`;
       if (!me.active) {
         meSub.textContent = 'Esta jornada te toca mirar desde la grada. El martes empieza otra.';
@@ -576,9 +608,9 @@ class App {
       <p class="kickoff-label">${label}</p>
       <p class="kickoff-big">${big}</p>
       <div class="kickoff-match">
-        <div class="kickoff-side">${this.crest(focus.team1Logo, focus.team1, 'crest--lg', true)}<span>${this.esc(focus.team1)}</span></div>
+        <div class="kickoff-side">${this.crest(focus.team1Logo, 'crest--lg', true)}<span>${this.esc(focus.team1)}</span></div>
         <span class="kickoff-vs">vs</span>
-        <div class="kickoff-side">${this.crest(focus.team2Logo, focus.team2, 'crest--lg', true)}<span>${this.esc(focus.team2)}</span></div>
+        <div class="kickoff-side">${this.crest(focus.team2Logo, 'crest--lg', true)}<span>${this.esc(focus.team2)}</span></div>
       </div>
       <p class="kickoff-caption">${caption}</p>
     `;
@@ -598,7 +630,10 @@ class App {
 
     if (!this.elements.matchesContainer) return;
 
-    // Conserva lo que el usuario está escribiendo si llegan datos de otros
+    // Conserva lo que el usuario está escribiendo (y el foco) si llegan datos de otros
+    const active = this.elements.matchesContainer.contains(document.activeElement) ? document.activeElement : null;
+    const focusName = active?.closest('.stepper')?.querySelector('.score-input')?.name;
+    const focusStep = active?.dataset.step;
     const typed = {};
     this.elements.matchesContainer.querySelectorAll('.score-input').forEach(input => {
       if (input.value !== '' && input.dataset.dirty) typed[input.name] = input.value;
@@ -633,6 +668,11 @@ class App {
         }
       });
       this.bindPredictionInputs();
+      if (focusName) {
+        const input = this.elements.matchesContainer.querySelector(`[name="${CSS.escape(focusName)}"]`);
+        const target = focusStep ? input?.parentElement.querySelector(`[data-step="${focusStep}"]`) : input;
+        target?.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -641,19 +681,19 @@ class App {
     const stepper = (side, team, value) => `
       <div class="stepper">
         <button type="button" class="step" data-step="-1" aria-label="Un gol menos para ${this.esc(team)}">&minus;</button>
-        <input type="number" inputmode="numeric" min="0" max="20" name="${side}-${this.esc(match.id)}" value="${value ?? ''}" placeholder="0" class="score-input" aria-label="Goles de ${this.esc(team)}">
+        <input type="number" inputmode="numeric" min="0" max="20" name="${side}-${this.esc(match.id)}" value="${value ?? ''}" placeholder="–" autocomplete="off" class="score-input" aria-label="Goles de ${this.esc(team)}" aria-describedby="picks-error">
         <button type="button" class="step" data-step="1" aria-label="Un gol más para ${this.esc(team)}">+</button>
       </div>`;
 
     return `
       <div class="pick" data-match-id="${this.esc(match.id)}">
-        <div class="pick-team pick-home">${this.crest(match.team1Logo, match.team1)}<span class="pick-name">${this.esc(match.team1)}</span></div>
+        <div class="pick-team pick-home">${this.crest(match.team1Logo)}<span class="pick-name">${this.esc(match.team1)}</span></div>
         <div class="pick-score">
           ${stepper('home', match.team1, pred?.score1)}
           <span class="pick-dash" aria-hidden="true">-</span>
           ${stepper('away', match.team2, pred?.score2)}
         </div>
-        <div class="pick-team pick-away"><span class="pick-name">${this.esc(match.team2)}</span>${this.crest(match.team2Logo, match.team2)}</div>
+        <div class="pick-team pick-away"><span class="pick-name">${this.esc(match.team2)}</span>${this.crest(match.team2Logo)}</div>
         <p class="pick-meta">${this.kickoffLabel(match.date)}</p>
       </div>
     `;
@@ -664,6 +704,7 @@ class App {
     container.querySelectorAll('.score-input').forEach(input => {
       input.addEventListener('input', () => {
         input.dataset.dirty = '1';
+        this.clearFieldError(input);
         if (this.confirming) this.setConfirming(false);
       });
     });
@@ -674,6 +715,7 @@ class App {
         const current = input.value === '' ? 0 : Number(input.value);
         input.value = Math.min(20, Math.max(0, current + step));
         input.dataset.dirty = '1';
+        this.clearFieldError(input);
         if (this.confirming) this.setConfirming(false);
       });
     });
@@ -702,9 +744,9 @@ class App {
           <span class="fixture-state">${state}</span>
         </header>
         <div class="fixture-body">
-          <div class="side">${this.crest(match.team1Logo, match.team1, 'crest--lg')}<span class="side-name">${this.esc(match.team1)}</span></div>
+          <div class="side">${this.crest(match.team1Logo, 'crest--lg')}<span class="side-name">${this.esc(match.team1)}</span></div>
           <div class="board">${board}</div>
-          <div class="side">${this.crest(match.team2Logo, match.team2, 'crest--lg')}<span class="side-name">${this.esc(match.team2)}</span></div>
+          <div class="side">${this.crest(match.team2Logo, 'crest--lg')}<span class="side-name">${this.esc(match.team2)}</span></div>
         </div>
         ${isLive || isFinished ? this.renderMatchEvents(match) : ''}
       </article>
@@ -717,7 +759,7 @@ class App {
     }
     const items = match.events.map(event => `
       <li class="event ${this.esc(event.type)}${String(event.description).startsWith('Tarjeta roja') ? ' red' : ''}">
-        <span class="event-time">${event.minute ? `${this.esc(event.minute)}'` : ''}</span>
+        <span class="event-time">${event.minute ? `${this.esc(event.minute)}′` : ''}</span>
         <span class="event-description">${this.esc(event.description)}</span>
       </li>`).join('');
     return `<ol class="timeline">${items}</ol>`;
@@ -757,7 +799,7 @@ class App {
         <li class="${classes}" data-participant-id="${this.esc(p.id)}">
           <span class="monogram" aria-hidden="true">${this.esc(p.name.trim().charAt(0).toUpperCase())}</span>
           <div class="player-main">
-            <span class="player-name${this.nameClass(p)}" title="${this.esc(p.name)}">${this.esc(p.name)}${isMe ? ' <em>Tú</em>' : ''}</span>
+            <span class="player-name${this.nameClass(p)}" title="${this.esc(p.name)}"><span translate="no">${this.esc(p.name)}</span>${isMe ? ' <em>Tú</em>' : ''}</span>
             <span class="player-state">${stateText}</span>
           </div>
           <div class="player-picks">${this.renderParticipantPredictions(p)}</div>
@@ -769,7 +811,7 @@ class App {
     const matches = this.gameManager.getMatches();
     return matches.map(match => {
       const pred = participant.predictions[match.id];
-      if (!pred) return '<span class="chip chip--empty" aria-label="Sin pronóstico">-</span>';
+      if (!pred) return '<span class="chip chip--empty"><span aria-hidden="true">-</span><span class="sr-only">Sin pronóstico</span></span>';
       const settled = match.isFinished();
       const isCorrect = settled && pred.score1 === match.score1 && pred.score2 === match.score2;
       const cls = settled ? (isCorrect ? 'chip--hit' : 'chip--miss') : '';
@@ -811,7 +853,7 @@ class App {
     list.innerHTML = people.map(p => `
       <li>
         <button type="button" class="roster-name${this.nameClass(p)}${this.hasAllPicks(p) ? ' is-done' : ''}" data-pick-player="${this.esc(p.id)}">
-          <span>${this.esc(p.name)}</span>${this.hasAllPicks(p) ? '<span class="roster-done">Hecho</span>' : ''}
+          <span class="roster-label" translate="no">${this.esc(p.name)}</span>${this.hasAllPicks(p) ? '<span class="roster-done">Hecho</span>' : ''}
         </button>
       </li>`).join('');
   }
@@ -819,13 +861,13 @@ class App {
   renderLockedPick(match, pred) {
     return `
       <div class="pick pick--locked" data-match-id="${this.esc(match.id)}">
-        <div class="pick-team pick-home">${this.crest(match.team1Logo, match.team1)}<span class="pick-name">${this.esc(match.team1)}</span></div>
+        <div class="pick-team pick-home">${this.crest(match.team1Logo)}<span class="pick-name">${this.esc(match.team1)}</span></div>
         <div class="pick-score pick-score--locked">
           <span class="locked-num">${pred ? pred.score1 : '-'}</span>
           <span class="pick-dash" aria-hidden="true">-</span>
           <span class="locked-num">${pred ? pred.score2 : '-'}</span>
         </div>
-        <div class="pick-team pick-away"><span class="pick-name">${this.esc(match.team2)}</span>${this.crest(match.team2Logo, match.team2)}</div>
+        <div class="pick-team pick-away"><span class="pick-name">${this.esc(match.team2)}</span>${this.crest(match.team2Logo)}</div>
         <p class="pick-meta">${this.kickoffLabel(match.date)}</p>
       </div>`;
   }
@@ -859,7 +901,8 @@ class App {
              <label class="field-label" for="admin-new">Código nuevo</label>
              <input class="field" id="admin-new" type="password" name="code" autocomplete="new-password" minlength="6" required>
              <label class="field-label" for="admin-new2">Repite el código</label>
-             <input class="field" id="admin-new2" type="password" name="code2" autocomplete="new-password" minlength="6" required>
+             <input class="field" id="admin-new2" type="password" name="code2" autocomplete="new-password" minlength="6" required aria-describedby="admin-setup-error">
+             <p class="field-error" id="admin-setup-error" role="alert" hidden></p>
              <div><button type="submit" class="btn btn-primary" data-admin-action="setup">Crear código</button></div>
            </form>`;
       return;
@@ -869,7 +912,7 @@ class App {
     const statusOptions = (current) => [['scheduled', 'Por jugar'], ['live', 'En juego'], ['finished', 'Final']]
       .map(([v, label]) => `<option value="${v}"${current === v ? ' selected' : ''}>${label}</option>`).join('');
     const scoreInput = (name, value, label) =>
-      `<input class="admin-score" type="number" inputmode="numeric" min="0" max="20" name="${name}" value="${value ?? ''}" aria-label="${this.esc(label)}">`;
+      `<input class="admin-score" type="number" inputmode="numeric" min="0" max="20" name="${name}" value="${value ?? ''}" autocomplete="off" aria-label="${this.esc(label)}">`;
 
     const matchRows = matches.map((m, i) => `
       <div class="admin-row" data-admin-row="${this.esc(m.id)}">
@@ -887,7 +930,7 @@ class App {
 
     const personRows = people.map(p => `
       <div class="admin-person" data-admin-row="${this.esc(p.id)}" data-name="${this.esc(this.normalize(p.name))}">
-        <input class="admin-name${this.nameClass(p)}" name="name" value="${this.esc(p.name)}" aria-label="Nombre">
+        <input class="admin-name${this.nameClass(p)}" name="name" value="${this.esc(p.name)}" autocomplete="off" spellcheck="false" aria-label="Nombre de ${this.esc(p.name)}">
         <div class="admin-picks">
           ${matches.map((m, i) => {
             const pred = p.predictions?.[m.id];
@@ -895,8 +938,8 @@ class App {
           }).join('')}
         </div>
         <div class="admin-swatches" role="group" aria-label="Color del nombre">
-          <button type="button" class="swatch swatch--none${p.color ? '' : ' is-on'}" data-admin-action="setColor" data-color="" aria-label="Sin color"></button>
-          ${colors.map(c => `<button type="button" class="swatch swatch--${c}${p.color === c ? ' is-on' : ''}" data-admin-action="setColor" data-color="${c}" aria-label="Color ${c}"></button>`).join('')}
+          <button type="button" class="swatch swatch--none${p.color ? '' : ' is-on'}" data-admin-action="setColor" data-color="" aria-label="Sin color" aria-pressed="${!p.color}"></button>
+          ${colors.map(c => `<button type="button" class="swatch swatch--${c}${p.color === c ? ' is-on' : ''}" data-admin-action="setColor" data-color="${c}" aria-label="Color ${c}" aria-pressed="${p.color === c}"></button>`).join('')}
         </div>
         <div class="admin-actions">
           <button type="button" class="btn btn-small" data-admin-action="saveParticipant">Guardar</button>
@@ -908,7 +951,7 @@ class App {
       <div class="admin-card" data-admin-row="pot">
         <h3 class="admin-title">Bote</h3>
         <div class="admin-inline">
-          <input class="admin-pot" type="number" inputmode="decimal" min="0" step="1" name="pot" value="${this.gameManager.pot || 0}" aria-label="Bote en euros">
+          <input class="admin-pot" type="number" inputmode="decimal" min="0" step="1" name="pot" value="${this.gameManager.pot || 0}" autocomplete="off" aria-label="Bote en euros">
           <span>€</span>
           <button type="button" class="btn btn-small" data-admin-action="setPot">Guardar</button>
         </div>
@@ -923,7 +966,7 @@ class App {
       <div class="admin-card">
         <h3 class="admin-title">Participantes</h3>
         <p class="admin-note">${matches.map((m, i) => `P${i + 1}: ${this.esc(m.team1)} - ${this.esc(m.team2)}`).join('<br>')}</p>
-        <input class="admin-filter" type="search" name="admin-filter" placeholder="Buscar…" aria-label="Buscar participante">
+        <input class="admin-filter" type="search" name="admin-filter" autocomplete="off" placeholder="Buscar…" aria-label="Buscar participante">
         <div class="admin-people">${personRows}</div>
       </div>
 
@@ -940,7 +983,8 @@ class App {
         </div>
         <div>
           <label class="field-label" for="admin-new-code2">Repite el código nuevo</label>
-          <input class="field" id="admin-new-code2" type="password" name="newCode2" autocomplete="new-password" minlength="6">
+          <input class="field" id="admin-new-code2" type="password" name="newCode2" autocomplete="new-password" minlength="6" aria-describedby="admin-code-error">
+          <p class="field-error" id="admin-code-error" role="alert" hidden></p>
         </div>
         <div class="admin-actions">
           <button type="submit" class="btn btn-small" data-admin-action="changeCode">Cambiar código</button>

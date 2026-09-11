@@ -109,7 +109,7 @@ describe('formatters', () => {
 
   describe('truncate', () => {
     test('truncates long strings', () => {
-      expect(formatters.truncate('hello world', 8)).toBe('hello...');
+      expect(formatters.truncate('hello world', 8)).toBe('hello w…');
     });
 
     test('does not truncate short strings', () => {

@@ -45,7 +45,7 @@
           <form id="join-form" class="join-form">
             <label for="participant-name" class="field-label">¿No estás en la lista? Añádete</label>
             <div class="join-row">
-              <input type="text" id="participant-name" name="nombre" class="field" autocomplete="nickname" required minlength="2" maxlength="40" aria-describedby="join-error">
+              <input type="text" id="participant-name" name="nombre" class="field" autocomplete="nickname" spellcheck="false" required minlength="2" maxlength="40" aria-describedby="join-error">
               <button type="submit" class="btn btn-primary" id="join-button">Añadirme</button>
             </div>
             <p class="field-error" id="join-error" role="alert" hidden></p>
@@ -72,7 +72,9 @@
       <p class="block-sub">Jornada <span id="current-round">1</span><span id="journey-dates"></span>. <span id="picks-sub">Solo se pueden guardar una vez, así que revísalos antes de confirmar.</span></p>
       <form id="prediction-form" class="picks" novalidate>
         <div id="matches-container"></div>
+        <p class="field-error picks-error" id="picks-error" role="alert" hidden></p>
         <div class="picks-actions">
+          <p class="sr-only" id="picks-status" aria-live="polite"></p>
           <button type="submit" class="btn btn-primary btn-lg" id="submit-predictions">Guardar pronósticos</button>
         </div>
       </form>
