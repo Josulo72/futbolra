@@ -539,6 +539,17 @@ class App {
         stadium.classList.toggle('is-offscreen', !entry.isIntersecting);
       }).observe(stadium);
     }
+
+    // Con «reducir movimiento» no hay desplazamiento: una frase cada vez, con fundido
+    const phrases = [...stadium.querySelectorAll('.led-still span')];
+    let phrase = 0;
+    setInterval(() => {
+      const idle = stadium.classList.contains('is-paused') || stadium.classList.contains('is-offscreen') || document.hidden;
+      if (!prefersReducedMotion() || idle || phrases.length < 2) return;
+      phrases[phrase].classList.remove('is-on');
+      phrase = (phrase + 1) % phrases.length;
+      phrases[phrase].classList.add('is-on');
+    }, 3500);
   }
 
   // ---------- App instalable ----------

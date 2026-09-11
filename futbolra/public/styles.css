@@ -384,25 +384,30 @@ h1.hero-title { text-wrap: balance; }
   padding-block: 12px;
   background: #040705;
   border-block: 1px solid rgba(201, 242, 77, 0.14);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
 }
-/* Rejilla de píxeles por encima del texto: se lee como una pantalla LED */
+/* Por encima del texto: bordes que se funden con el fondo y rejilla de píxeles de pantalla LED.
+   Sin mask-image, que en Safari de iPhone puede dejar la animación sin repintar. */
 .led-board::after {
   content: '';
   position: absolute; inset: 0;
   pointer-events: none;
-  background-image: radial-gradient(circle, transparent 1.2px, rgba(4, 7, 5, 0.72) 1.8px);
-  background-size: 4px 4px;
+  background-image:
+    linear-gradient(90deg, #040705, rgba(4, 7, 5, 0) 6%, rgba(4, 7, 5, 0) 94%, #040705),
+    radial-gradient(circle, transparent 1.2px, rgba(4, 7, 5, 0.72) 1.8px);
+  background-size: 100% 100%, 4px 4px;
 }
 .led-track {
   display: flex; align-items: center;
   width: max-content; height: 100%;
+  will-change: transform;
   animation: led-scroll 36s linear infinite;
 }
 .led-track span {
   display: inline-flex; align-items: center;
   gap: 32px; padding-right: 32px;
+}
+.led-track span,
+.led-still span {
   font-family: var(--font-display);
   font-weight: 900;
   font-size: 40px;
@@ -417,8 +422,20 @@ h1.hero-title { text-wrap: balance; }
   width: 10px; height: 10px; border-radius: 50%;
   background: var(--accent);
 }
-.led-track .led-lime, .led-track em { color: var(--accent); font-style: normal; }
-@keyframes led-scroll { to { transform: translateX(-50%); } }
+.led-board .led-lime, .led-board em { color: var(--accent); font-style: normal; }
+@keyframes led-scroll {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+/* Con «reducir movimiento» no se desplaza: cambia de frase con un fundido (App.js) */
+.led-still { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .led-track { display: none; }
+  .led-still { display: grid; place-items: center; height: 100%; }
+  .led-still span { grid-area: 1 / 1; opacity: 0; transition: opacity 600ms ease !important; }
+  .led-still span.is-on { opacity: 1; }
+}
 .stadium.is-paused .led-track,
 .stadium.is-offscreen .led-track { animation-play-state: paused; }
 
@@ -1019,8 +1036,6 @@ html:has(.confirm[open]) { overflow: hidden; }
   .player.is-just-out { animation-duration: 1600ms !important; }
   .player.is-just-out .monogram::after,
   .is-sealing .locked-num { animation-name: fade-in !important; animation-duration: 240ms !important; }
-  /* La valla se queda quieta, así que el botón de pausa sobra */
-  .led-pause { display: none; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -1079,6 +1094,7 @@ html:has(.confirm[open]) { overflow: hidden; }
   .install .btn { width: 100%; }
   .led-board { height: 48px; padding-block: 9px; }
   .led-track span { font-size: 30px; gap: 22px; padding-right: 22px; }
+  .led-still span { font-size: 30px; }
   .led-track span::after { width: 8px; height: 8px; }
   .led-pause { right: 10px; width: 36px; height: 36px; }
 
