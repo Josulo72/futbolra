@@ -13,6 +13,7 @@ class Match {
     this.events = data.events || [];
     this.round = data.round || 0;
     this.weekendMatch = data.weekendMatch || false;
+    this.manual = data.manual || false;
   }
 
   isWeekend() {
@@ -69,7 +70,8 @@ class Match {
       status: this.status,
       events: this.events,
       round: this.round,
-      weekendMatch: this.weekendMatch
+      weekendMatch: this.weekendMatch,
+      manual: this.manual
     };
   }
 

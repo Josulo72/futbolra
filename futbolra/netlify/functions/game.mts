@@ -1,4 +1,5 @@
 import { getStore, getDeployStore } from "@netlify/blobs";
+import porra from "../lib/porra.js";
 
 // Porra compartida: una sola entrada JSON con jornada, participantes y bote.
 const KEY = "game";
@@ -8,30 +9,6 @@ function getGameStore() {
     return getStore({ name: "futbolra", consistency: "strong" });
   }
   return getDeployStore("futbolra");
-}
-
-const emptyGame = () => ({
-  matches: [],
-  participants: [],
-  currentRound: 0,
-  pot: 0,
-  journeyLocked: false,
-  journeyStartDate: null,
-  journeyEndDate: null,
-});
-
-const isRealJourney = (matches: any[]) =>
-  matches.length > 0 && matches.every((m) => /^(espn|tsdb)-/.test(String(m.id)));
-
-function isValidParticipant(p: any) {
-  return (
-    p &&
-    typeof p.id === "string" &&
-    typeof p.name === "string" &&
-    p.name.trim().length >= 2 &&
-    p.name.trim().length <= 50 &&
-    typeof p.predictions === "object"
-  );
 }
 
 // ---------- Directo: ESPN (Madrid, Barça) y TheSportsDB (Ponferradina) ----------
@@ -124,50 +101,26 @@ async function fetchLiveUpdates(game: any) {
   return updates;
 }
 
-// Aplica marcadores y eventos; al terminar un partido elimina a quien no acertó
-function applyLiveUpdates(game: any, updates: Record<string, any>) {
-  for (const match of game.matches) {
-    const u = updates[match.id];
-    if (!u || match.status === "finished") continue;
-    match.status = u.status;
-    if (u.score1 !== null && u.score2 !== null) {
-      match.score1 = u.score1;
-      match.score2 = u.score2;
-    }
-    if (u.events) match.events = u.events;
-
-    // Si ya solo queda uno activo, es el ganador y no se elimina a nadie más
-    const stillActive = game.participants.filter((p: any) => p.active).length;
-    if (u.status === "finished" && match.score1 !== null && match.score2 !== null && stillActive > 1) {
-      for (const p of game.participants) {
-        if (!p.active) continue;
-        const pred = p.predictions?.[match.id];
-        if (!pred || pred.score1 !== match.score1 || pred.score2 !== match.score2) {
-          p.active = false;
-          p.eliminatedAt = new Date().toISOString();
-          p.eliminatedInMatch = match.id;
-        }
-      }
-    }
-  }
-  if (game.matches.some((m: any) => m.status !== "scheduled")) game.journeyLocked = true;
-}
+const json = (data: any, status = 200) =>
+  Response.json(data, { status, headers: { "Cache-Control": "no-store" } });
 
 export default async (req: Request) => {
   const store = getGameStore();
-  let stored = (await store.get(KEY, { type: "json" })) || emptyGame();
+  let game = { ...porra.emptyGame(), ...((await store.get(KEY, { type: "json" })) || {}) };
+
+  if (porra.seedParticipants(game)) await store.setJSON(KEY, game);
 
   if (req.method === "GET") {
-    const lastCheck = stored.liveCheckedAt ? new Date(stored.liveCheckedAt).getTime() : 0;
-    if (Date.now() - lastCheck >= LIVE_REFRESH_MS && stored.matches?.length) {
-      const updates = await fetchLiveUpdates(stored);
+    const lastCheck = game.liveCheckedAt ? new Date(game.liveCheckedAt).getTime() : 0;
+    if (Date.now() - lastCheck >= LIVE_REFRESH_MS && game.matches?.length) {
+      const updates = await fetchLiveUpdates(game);
       // Relee antes de escribir para no pisar altas o pronósticos recientes
-      stored = (await store.get(KEY, { type: "json" })) || stored;
-      applyLiveUpdates(stored, updates);
-      stored.liveCheckedAt = new Date().toISOString();
-      await store.setJSON(KEY, stored);
+      game = { ...porra.emptyGame(), ...((await store.get(KEY, { type: "json" })) || game) };
+      porra.applyLiveUpdates(game, updates);
+      game.liveCheckedAt = new Date().toISOString();
+      await store.setJSON(KEY, game);
     }
-    return Response.json(stored, { headers: { "Cache-Control": "no-store" } });
+    return json(porra.publicGame(game));
   }
 
   if (req.method !== "POST") {
@@ -178,71 +131,28 @@ export default async (req: Request) => {
   try {
     body = await req.json();
   } catch {
-    return new Response("JSON inválido", { status: 400 });
+    return json({ error: "JSON inválido" }, 400);
   }
 
-  const game = { ...emptyGame(), ...stored };
-
-  // Nueva jornada: solo si es posterior a la guardada o si la guardada no es real
-  const journey = body?.journey;
-  if (journey && Array.isArray(journey.matches) && isRealJourney(journey.matches)) {
-    const newer = (journey.currentRound || 0) > (game.currentRound || 0);
-    if (newer || !isRealJourney(game.matches)) {
-      game.matches = journey.matches;
-      game.currentRound = journey.currentRound;
-      game.journeyStartDate = journey.journeyStartDate || null;
-      game.journeyEndDate = journey.journeyEndDate || null;
-      game.journeyLocked = false;
-      game.participants = game.participants.map((p: any) => ({
-        ...p,
-        active: true,
-        eliminatedAt: null,
-        eliminatedInMatch: null,
-        points: 0,
-      }));
+  let result: any = {};
+  try {
+    if (body?.journey) porra.applyJourney(game, body.journey);
+    if (body?.join) porra.addParticipant(game, body.join);
+    if (body?.predictions) {
+      porra.submitPredictions(game, body.predictions.participantId, body.predictions.predictions);
     }
-  }
-
-  // Baja de un participante
-  if (typeof body?.leave === "string") {
-    game.participants = game.participants.filter((p: any) => p.id !== body.leave);
-  }
-
-  // Alta o actualización de un participante, sin tocar a los demás
-  const participant = body?.participant;
-  if (participant) {
-    if (!isValidParticipant(participant)) {
-      return new Response("Participante no válido", { status: 400 });
+    if (body?.admin) result = porra.adminAction(game, body.admin) || {};
+  } catch (error: any) {
+    if (error instanceof porra.PorraError) {
+      // Guarda aunque falle cuando cuenta (intentos de código fallidos)
+      if (error.persist) await store.setJSON(KEY, game);
+      return json({ error: error.message }, error.status);
     }
-    const matchIds = new Set(game.matches.map((m: any) => m.id));
-    const firstMatch = game.matches
-      .map((m: any) => new Date(m.date))
-      .sort((a: Date, b: Date) => a.getTime() - b.getTime())[0];
-    const started = firstMatch && new Date() >= firstMatch;
-
-    const index = game.participants.findIndex((p: any) => p.id === participant.id);
-    const current = index >= 0 ? game.participants[index] : null;
-
-    // Una vez empezada la jornada no se aceptan pronósticos nuevos
-    const predictions = started
-      ? current?.predictions || {}
-      : Object.fromEntries(
-          Object.entries(participant.predictions).filter(([id]) => matchIds.has(id))
-        );
-
-    const merged = {
-      ...(current || { active: true, eliminatedAt: null, eliminatedInMatch: null, points: 0 }),
-      id: participant.id,
-      name: participant.name.trim(),
-      predictions,
-    };
-
-    if (index >= 0) game.participants[index] = merged;
-    else game.participants.push(merged);
+    throw error;
   }
 
   await store.setJSON(KEY, game);
-  return Response.json(game, { headers: { "Cache-Control": "no-store" } });
+  return json({ ...porra.publicGame(game), ...(result.token ? { adminToken: result.token } : {}) });
 };
 
 export const config = {

@@ -7,6 +7,7 @@ class Participant {
     this.eliminatedAt = data.eliminatedAt || null;
     this.eliminatedInMatch = data.eliminatedInMatch || null;
     this.points = data.points || 0;
+    this.color = data.color || null;
   }
 
   addPrediction(matchId, score1, score2) {
@@ -59,7 +60,8 @@ class Participant {
       active: this.active,
       eliminatedAt: this.eliminatedAt,
       eliminatedInMatch: this.eliminatedInMatch,
-      points: this.points
+      points: this.points,
+      color: this.color
     };
   }
 

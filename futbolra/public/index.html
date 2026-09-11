@@ -1,107 +1,109 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="first-paint">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Futbolra - Pronósticos de fútbol premium entre amigos">
-  <title>Futbolra | Porra de Fútbol Premium</title>
+  <meta name="description" content="Futbolra: la porra de supervivencia entre amigos. Acierta el marcador del Madrid, el Barça y la Ponferradina.">
+  <meta name="theme-color" content="#0b1310">
+  <title>Futbolra | La porra de supervivencia</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Geist:wght@400;500;600&family=Geist+Mono:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 </head>
 <body>
-  <div class="bg-pattern"></div>
-  
-  <header class="header">
-    <div class="container">
-      <div class="header-content">
-        <a href="#" class="logo" aria-label="Futbolra - Inicio">
-          <svg class="logo-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <circle cx="24" cy="24" r="22" stroke="currentColor" stroke-width="2"/>
-            <path d="M24 8C15.16 8 8 15.16 8 24s7.16 16 16 16 16-7.16 16-16S32.84 8 24 8zm0 28c-6.63 0-12-5.37-12-12S17.37 16 24 16s12 5.37 12 12-5.37 12-12 12z" fill="currentColor"/>
-            <ellipse cx="24" cy="24" rx="6" ry="3" fill="url(#gradient)"/>
-            <defs>
-              <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FFD700"/>
-                <stop offset="100%" stop-color="#FFA500"/>
-              </linearGradient>
-            </defs>
-          </svg>
-          <span class="logo-text">Futbolra</span>
-        </a>
-        
-        <div class="header-stats">
-          <div class="stat">
-            <span class="stat-value" id="pot-amount">0€</span>
-            <span class="stat-label">Bote</span>
-          </div>
-          <div class="stat">
-            <span class="stat-value" id="journey-status">Cargando...</span>
-          </div>
+  <div class="pitch" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a href="#" class="wordmark" aria-label="Futbolra, inicio">Futbol<span>ra</span></a>
+      <div class="topbar-meta">
+        <div class="pot">
+          <span class="pot-label">Bote</span>
+          <span class="pot-value" id="pot-amount">0 €</span>
         </div>
+        <div class="state-pill" id="journey-status">Cargando</div>
       </div>
     </div>
   </header>
 
-  <main class="main">
-    <div class="container">
-      <section class="join-section" id="join-section">
-        <div class="card">
-          <h2>Únete a la porra</h2>
-          <p>Introduce tu nombre para empezar a pronosticar</p>
+  <main>
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <div id="join-section" class="reveal" style="--i:0">
+          <p class="kicker" id="hero-round">Jornada</p>
+          <h1 class="hero-title">Tres marcadores.<br>Un superviviente.</h1>
+          <p class="hero-sub">Acierta el resultado exacto del Madrid, el Barça y la Ponferradina. Fallas uno y te vas a la grada.</p>
+          <div class="picker">
+            <label for="roster-search" class="field-label">Busca tu nombre y púlsalo</label>
+            <input type="search" id="roster-search" class="field" autocomplete="off" spellcheck="false">
+            <ul class="roster" id="roster" aria-label="Participantes"></ul>
+          </div>
           <form id="join-form" class="join-form">
-            <input type="text" id="participant-name" placeholder="Tu nombre" required minlength="2" maxlength="50">
-            <button type="submit" class="btn btn-primary">Entrar</button>
+            <label for="participant-name" class="field-label">¿No estás en la lista? Añádete</label>
+            <div class="join-row">
+              <input type="text" id="participant-name" class="field" autocomplete="nickname" required minlength="2" maxlength="40">
+              <button type="submit" class="btn btn-primary">Añadirme</button>
+            </div>
           </form>
         </div>
-      </section>
-
-      <section class="predictions-section" id="predictions-section" style="display: none;">
-        <div class="section-header">
-          <h2>Tus predicciones</h2>
-          <p class="section-subtitle">Jornada <span id="current-round">1</span> - <span id="journey-dates"></span></p>
+        <div id="me-panel" class="me-panel" hidden>
+          <p class="kicker" id="me-round">Jornada</p>
+          <h1 class="hero-title" id="me-title">Hola</h1>
+          <p class="hero-sub" id="me-sub"></p>
+          <button type="button" class="btn-link" id="not-me">No soy yo</button>
         </div>
-        
-        <form id="prediction-form" class="predictions-grid">
-          <div id="matches-container"></div>
-          
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary btn-lg" id="submit-predictions">
-              <span class="btn-text">Guardar predicciones</span>
-              <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-                <polyline points="17 21 17 13 7 13 7 21"></polyline>
-                <polyline points="7 3 7 8 15 8"></polyline>
-              </svg>
-            </button>
-          </div>
-        </form>
-      </section>
+      </div>
 
-      <section class="matches-section">
-        <div class="section-header">
-          <h2>Partidos</h2>
-          <p class="section-subtitle">Resultados en vivo</p>
+      <aside class="kickoff reveal" id="kickoff" style="--i:1" aria-live="polite">
+        <div class="kickoff-skeleton">
+          <span class="sk sk-crest"></span><span class="sk sk-crest"></span>
+          <span class="sk sk-line"></span><span class="sk sk-line short"></span>
         </div>
-        <div class="matches-grid" id="matches-display"></div>
-      </section>
+      </aside>
+    </section>
 
-      <section class="participants-section">
-        <div class="section-header">
-          <h2>Clasificación</h2>
-          <p class="section-subtitle">Estado de los participantes</p>
+    <section class="block wrap" id="predictions-section" style="display: none;">
+      <h2 class="block-title">Tus pronósticos</h2>
+      <p class="block-sub">Jornada <span id="current-round">1</span><span id="journey-dates"></span>. <span id="picks-sub">Solo se pueden guardar una vez, así que revísalos antes de confirmar.</span></p>
+      <form id="prediction-form" class="picks" novalidate>
+        <div id="matches-container"></div>
+        <div class="picks-actions">
+          <button type="submit" class="btn btn-primary btn-lg" id="submit-predictions">Guardar pronósticos</button>
         </div>
-        <div class="participants-list" id="participants-display"></div>
-      </section>
-    </div>
+      </form>
+    </section>
+
+    <section class="block wrap">
+      <h2 class="block-title">La jornada</h2>
+      <div class="fixtures" id="matches-display">
+        <div class="fixture fixture--lead sk-card"></div>
+        <div class="fixture sk-card"></div>
+        <div class="fixture sk-card"></div>
+      </div>
+    </section>
+
+    <section class="block wrap">
+      <div class="standings-head">
+        <h2 class="block-title">Supervivientes</h2>
+        <p class="alive-count" id="alive-count"></p>
+      </div>
+      <ol class="standings" id="participants-display">
+        <li class="player sk-row"></li>
+        <li class="player sk-row"></li>
+      </ol>
+    </section>
+
+    <section class="block wrap" id="admin-section" hidden>
+      <h2 class="block-title">Administración</h2>
+      <div class="admin" id="admin-panel"></div>
+    </section>
   </main>
 
-  <footer class="footer">
-    <div class="container">
-      <p>&copy; 2026 Futbolra. Porra de fútbol entre amigos - 100% automática</p>
-    </div>
+  <footer class="footer wrap">
+    <p>Futbolra. Porra entre amigos, sin dinero de por medio.</p>
+    <p>Datos de partidos: ESPN y TheSportsDB.</p>
   </footer>
 
   <div class="toast-container" id="toast-container" aria-live="polite"></div>
@@ -118,8 +120,6 @@
     const browserDataService = {
       lastJson: null,
 
-      async init() {},
-
       emit(data) {
         const json = JSON.stringify(data);
         if (json === this.lastJson) return;
@@ -127,28 +127,43 @@
         window.dispatchEvent(new CustomEvent('futbolra-update', { detail: data }));
       },
 
-      async saveGameManager(gameManager) {
-        const data = gameManager.toJSON();
-        let meId = null;
-        try { meId = localStorage.getItem('futbolra-me'); } catch (e) {}
-        const participant = data.participants.find(p => p.id === meId);
-        const res = await fetch('/api/game', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            participant,
-            journey: {
-              matches: data.matches,
-              currentRound: data.currentRound,
-              journeyStartDate: data.journeyStartDate,
-              journeyEndDate: data.journeyEndDate
-            }
-          })
-        });
-        if (!res.ok) throw new Error('No se ha podido guardar. Inténtalo de nuevo.');
-        const saved = await res.json();
-        this.lastJson = JSON.stringify(saved);
-        return saved;
+      async post(body) {
+        let res;
+        try {
+          res = await fetch('/api/game', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+        } catch (e) {
+          throw new Error('Sin conexión. Inténtalo de nuevo.');
+        }
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error = new Error(data.error || 'No se ha podido guardar. Inténtalo de nuevo.');
+          error.status = res.status;
+          throw error;
+        }
+        // La sesión del administrador no forma parte del estado de la porra
+        const { adminToken, ...game } = data;
+        this.lastJson = JSON.stringify(game);
+        return data;
+      },
+
+      saveJourney(journey) {
+        return this.post({ journey });
+      },
+
+      join(id, name) {
+        return this.post({ join: { id, name } });
+      },
+
+      submitPredictions(participantId, predictions) {
+        return this.post({ predictions: { participantId, predictions } });
+      },
+
+      admin(payload) {
+        return this.post({ admin: payload });
       },
 
       async loadGameManager() {
@@ -172,14 +187,6 @@
           clearInterval(timer);
           window.removeEventListener('futbolra-update', handler);
         };
-      },
-
-      unsubscribeFromGame(callback) {},
-
-      async savePot(amount) {},
-
-      async loadPot() {
-        return null;
       }
     };
 
@@ -193,6 +200,7 @@
       
       window.app = app;
       window.gameManager = gameManager;
+      setTimeout(() => document.documentElement.classList.remove('first-paint'), 1400);
     }
 
     document.addEventListener('DOMContentLoaded', initApp);
