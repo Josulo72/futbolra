@@ -96,9 +96,9 @@ function recomputeEliminations(game) {
     .filter((m) => m.status === 'finished' && m.score1 !== null && m.score2 !== null)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+  // Cada partido terminado elimina a quien no lo acertó, aunque solo quede uno vivo:
+  // para ganar hay que acertar los tres. Si nadie los acierta, no hay ganador.
   for (const match of finished) {
-    // Si solo queda uno vivo, es el ganador y no se elimina a nadie más
-    if (game.participants.filter((p) => p.active).length <= 1) break;
     for (const p of game.participants) {
       if (!p.active) continue;
       const pred = p.predictions?.[match.id];

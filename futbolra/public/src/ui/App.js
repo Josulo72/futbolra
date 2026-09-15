@@ -1039,7 +1039,8 @@ class App {
     }
 
     const started = !this.scheduleService.canMakePredictions();
-    const winner = started && alive === 1 && participants.length > 1;
+    const allFinished = this.gameManager.getMatches().every(m => m.isFinished());
+    const winner = started && allFinished && alive === 1 && participants.length > 1;
     const container = this.elements.participantsContainer;
     const out = this.changes?.out || new Set();
 
@@ -1195,8 +1196,8 @@ class App {
     const token = this.adminToken();
     const wanted = window.location.hash === '#admin';
     section.hidden = !wanted;
-    // Con sesión abierta, el pie enlaza con el panel para volver a entrar
-    if (this.elements.adminLink) this.elements.adminLink.hidden = !token || wanted;
+    // El botón del pie siempre lleva al panel; se oculta solo mientras el panel está abierto
+    if (this.elements.adminLink) this.elements.adminLink.hidden = wanted;
     if (!wanted) return;
 
     // No pisar lo que el administrador está escribiendo

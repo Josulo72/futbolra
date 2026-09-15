@@ -95,13 +95,22 @@ describe('eliminaciones', () => {
     expect(byId.c.eliminatedInMatch).toBe('espn-1');
   });
 
-  test('si queda uno solo es el ganador y no se elimina a nadie más', () => {
+  test('el único vivo también cae si falla un partido posterior', () => {
     const game = gameWithThree();
     porra.applyLiveUpdates(game, { 'espn-1': { status: 'finished', score1: 1, score2: 0, events: [] } });
     porra.applyLiveUpdates(game, { 'espn-2': { status: 'finished', score1: 1, score2: 1, events: [] } });
+    expect(game.participants.filter((p) => p.active).map((p) => p.id)).toEqual(['a']);
     porra.applyLiveUpdates(game, { 'tsdb-3': { status: 'finished', score1: 5, score2: 5, events: [] } });
-    const alive = game.participants.filter((p) => p.active).map((p) => p.id);
-    expect(alive).toEqual(['a']);
+    expect(game.participants.filter((p) => p.active)).toEqual([]);
+    expect(game.participants.find((p) => p.id === 'a').eliminatedInMatch).toBe('tsdb-3');
+  });
+
+  test('gana quien acierta los tres', () => {
+    const game = gameWithThree();
+    porra.applyLiveUpdates(game, { 'espn-1': { status: 'finished', score1: 1, score2: 0, events: [] } });
+    porra.applyLiveUpdates(game, { 'espn-2': { status: 'finished', score1: 1, score2: 1, events: [] } });
+    porra.applyLiveUpdates(game, { 'tsdb-3': { status: 'finished', score1: 0, score2: 2, events: [] } });
+    expect(game.participants.filter((p) => p.active).map((p) => p.id)).toEqual(['a']);
   });
 
   test('un partido en juego no elimina a nadie', () => {

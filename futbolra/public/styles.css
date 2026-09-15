@@ -865,10 +865,7 @@ h1.hero-title { text-wrap: balance; }
   font-size: 13px; color: var(--text-3);
 }
 
-.footer-admin { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
-@media (hover: hover) and (pointer: fine) {
-  .footer-admin:hover { color: var(--text); }
-}
+.footer-admin { display: inline-flex; margin-top: 8px; text-decoration: none; }
 
 /* ---------- Ventana de confirmación ---------- */
 
