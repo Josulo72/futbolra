@@ -118,6 +118,22 @@ main:focus { outline: none; }
 
 .topbar-meta { display: flex; align-items: center; gap: 20px; min-width: 0; }
 
+/* Acceso a la administración: siempre a la vista, sin bajar al pie */
+.topbar-admin {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 36px; padding: 0 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong); background: var(--bg-3);
+  color: var(--text-2); text-decoration: none;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+  transition: color 160ms ease, border-color 160ms ease, transform 160ms var(--ease-out);
+}
+.topbar-admin svg { width: 17px; height: 17px; flex: none; }
+.topbar-admin:active { transform: scale(0.97); }
+@media (hover: hover) and (pointer: fine) {
+  .topbar-admin:hover { color: var(--text); border-color: var(--accent); }
+}
+
 .pot { display: flex; align-items: baseline; gap: 8px; }
 .pot-label { font-size: 13px; color: var(--text-3); }
 .pot-value { font-family: var(--font-mono); font-size: 15px; color: var(--text); white-space: nowrap; }
@@ -865,7 +881,7 @@ h1.hero-title { text-wrap: balance; }
   font-size: 13px; color: var(--text-3);
 }
 
-.footer-admin { display: inline-flex; margin-top: 8px; text-decoration: none; }
+.footer-admin { display: inline-flex; margin-top: 8px; text-decoration: none; color: var(--text-2); }
 
 /* ---------- Ventana de confirmación ---------- */
 
@@ -1056,6 +1072,8 @@ html:has(.confirm[open]) { overflow: hidden; }
   .topbar-inner { height: 58px; }
   .wordmark { font-size: 26px; }
   .topbar-meta { gap: 10px; }
+  .topbar-admin { height: 32px; padding: 0 10px; gap: 0; }
+  .topbar-admin span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .pot-label { display: none; }
   .state-pill { height: 30px; padding: 0 10px; font-size: 12px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
 

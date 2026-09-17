@@ -127,6 +127,7 @@ class App {
       adminPanel: $('admin-panel'),
       adminExit: $('admin-exit'),
       adminLink: $('admin-link'),
+      adminTop: $('admin-top'),
       toastContainer: $('toast-container')
     };
   }
@@ -1198,6 +1199,7 @@ class App {
     section.hidden = !wanted;
     // El botón del pie siempre lleva al panel; se oculta solo mientras el panel está abierto
     if (this.elements.adminLink) this.elements.adminLink.hidden = wanted;
+    if (this.elements.adminTop) this.elements.adminTop.hidden = wanted;
     if (!wanted) return;
 
     // No pisar lo que el administrador está escribiendo
