@@ -136,6 +136,27 @@ describe('ScheduleService', () => {
       expect(scheduleService.getJourneyStatus()).toBe('live');
     });
 
+    test('usa las fechas aunque los partidos no estén en orden', () => {
+      // Orden fijo Madrid, Barça, Ponfe: el último del array puede ser el primero en jugarse
+      const inTwoDays = new Date();
+      inTwoDays.setDate(inTwoDays.getDate() + 2);
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      gameManager.initializeJourney([{
+        id: 'match-madrid',
+        date: inTwoDays.toISOString(),
+        weekendMatch: true
+      }, {
+        id: 'match-ponfe',
+        date: yesterday.toISOString(),
+        weekendMatch: true
+      }]);
+
+      expect(scheduleService.getJourneyStatus()).toBe('live');
+      expect(scheduleService.isJourneyActive()).toBe(true);
+    });
+
     test('returns finished when after last match', () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 10);
