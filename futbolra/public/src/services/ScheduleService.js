@@ -55,19 +55,23 @@ class ScheduleService {
     return this.gameManager.getMatches();
   }
 
+  // Primer y último pitido por fecha, no por el orden fijo de los partidos (Madrid, Barça, Ponfe)
+  journeyBounds() {
+    const dates = this.gameManager.getMatches()
+      .map(m => (m.date ? new Date(m.date) : null))
+      .filter(d => d && !isNaN(d))
+      .sort((a, b) => a - b);
+    return { first: dates[0] || null, last: dates[dates.length - 1] || null };
+  }
+
   isJourneyActive() {
     if (!this.gameManager) return false;
     
-    const matches = this.gameManager.getMatches();
-    if (matches.length === 0) return false;
-    
+    const { first, last } = this.journeyBounds();
+    if (!first || !last) return false;
+
     const now = new Date();
-    const firstMatch = matches[0];
-    const lastMatch = matches[matches.length - 1];
-    
-    if (!firstMatch.date || !lastMatch.date) return false;
-    
-    return now >= new Date(firstMatch.date) && now <= new Date(lastMatch.date);
+    return now >= first && now <= last;
   }
 
   canMakePredictions() {
@@ -80,21 +84,19 @@ class ScheduleService {
     
     const matches = this.gameManager.getMatches();
     if (matches.length === 0) return 'empty';
-    
+
+    const { first, last } = this.journeyBounds();
+    if (!first) return 'no-dates';
+
     const now = new Date();
-    const firstMatch = matches[0];
-    const lastMatch = matches[matches.length - 1];
-    
-    if (!firstMatch.date) return 'no-dates';
-    
-    if (now < new Date(firstMatch.date)) {
+    if (now < first) {
       return this.gameManager.isJourneyLocked() ? 'locked' : 'open';
     }
-    
-    if (now > new Date(lastMatch.date)) {
+
+    if (now > last) {
       return 'finished';
     }
-    
+
     return 'live';
   }
 

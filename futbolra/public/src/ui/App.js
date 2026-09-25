@@ -80,6 +80,8 @@ class App {
     const matches = this.gameManager.getMatches();
     if (matches.length === 0) return true;
     if (matches.some(m => !String(m.id).match(/^(espn|tsdb)-/))) return true;
+    // Una jornada con partidos de fines de semana distintos se rehace
+    if (!FixturesService.sameWeekend(matches.map(m => m.date))) return true;
     return new Date() >= this.getJourneyResetTime(matches);
   }
 
