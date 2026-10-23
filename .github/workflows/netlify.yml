@@ -1,0 +1,28 @@
+# Cada subida a main pasa los tests y publica la web en Netlify
+name: Publicar en Netlify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: futbolra
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: futbolra/package-lock.json
+      - run: npm ci
+      - run: npx jest
+      - name: Publicar
+        run: npx --yes netlify-cli@17 deploy --prod --dir public --functions netlify/functions --message "${{ github.sha }}"
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: cb62b691-f743-4a12-a47b-ebe5abe20f2f
