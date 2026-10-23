@@ -5,6 +5,9 @@ const FIXTURE_TEAMS = [
   { name: 'SD Ponferradina', source: 'thesportsdb', id: '134697' }
 ];
 
+// Si dos equipos juegan entre sí (p. ej. el Clásico), el partido repetido se cambia por el del Atlético
+const BACKUP_TEAM = { name: 'Atlético de Madrid', source: 'espn', id: '1068' };
+
 const ESPN_URL = (id) => `https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams/${id}/schedule?fixture=true`;
 const SPORTSDB_URL = (id) => `https://www.thesportsdb.com/api/v1/json/123/eventsnext.php?id=${id}`;
 
@@ -117,12 +120,34 @@ class FixturesService {
     throw new Error(`No hay un fin de semana en el que jueguen todos: ${names}`);
   }
 
-  // Devuelve los 3 partidos en orden: Madrid, Barça, Ponferradina
+  fetchEvents(team, now) {
+    return team.source === 'espn' ? this.fetchEspnEvents(team, now) : this.fetchSportsDbEvents(team, now);
+  }
+
+  // Cambia cada partido repetido por el del equipo de reserva en ese mismo fin de semana
+  async replaceDuplicates(picks, now) {
+    const seen = new Set();
+    const result = [];
+    for (const pick of picks) {
+      if (!seen.has(pick.id)) {
+        seen.add(pick.id);
+        result.push(pick);
+        continue;
+      }
+      const backupEvents = await this.fetchEvents(BACKUP_TEAM, now);
+      const backup = backupEvents.find(e => FixturesService.weekendKey(e.date) === pick.weekend && !seen.has(e.id));
+      if (!backup) throw new Error(`${BACKUP_TEAM.name} no juega el fin de semana del ${pick.weekend}`);
+      seen.add(backup.id);
+      result.push(backup);
+    }
+    return result;
+  }
+
+  // Devuelve los 3 partidos en orden: Madrid, Barça (o Atlético si coincide con el Madrid), Ponferradina
   async getNextJourney(now = new Date()) {
-    const eventsByTeam = await Promise.all(FIXTURE_TEAMS.map(team =>
-      team.source === 'espn' ? this.fetchEspnEvents(team, now) : this.fetchSportsDbEvents(team, now)
-    ));
-    return this.pickCommonWeekend(eventsByTeam).map(r => ({
+    const eventsByTeam = await Promise.all(FIXTURE_TEAMS.map(team => this.fetchEvents(team, now)));
+    const picks = await this.replaceDuplicates(this.pickCommonWeekend(eventsByTeam), now);
+    return picks.map(r => ({
       id: r.id,
       team1: r.team1,
       team2: r.team2,
@@ -136,5 +161,5 @@ class FixturesService {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { FixturesService, FIXTURE_TEAMS };
+  module.exports = { FixturesService, FIXTURE_TEAMS, BACKUP_TEAM };
 }
