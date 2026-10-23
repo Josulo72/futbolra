@@ -103,6 +103,20 @@ describe('FixturesService', () => {
       expect(journey.map(m => m.id)).toEqual(['espn-m1', 'espn-b1', 'tsdb-p1']);
     });
 
+    test('si Madrid y Barça juegan entre ellos, el segundo partido es el del Atlético', async () => {
+      const clasico = espnEvent('c1', '2026-10-25T15:15Z', 'Real Madrid', 'Barcelona');
+      const service = new FixturesService(fetchFor({
+        86: { events: [clasico] },
+        83: { events: [clasico] },
+        1068: { events: [espnEvent('a1', '2026-10-25T17:30Z', 'Atlético Madrid', 'Deportivo La Coruña')] },
+        134697: { events: [tsdbEvent('p1', '2026-10-25', '11:00:00', 'Ponferradina', 'Lugo')] }
+      }));
+
+      const journey = await service.getNextJourney(NOW);
+      expect(journey.map(m => m.id)).toEqual(['espn-c1', 'espn-a1', 'tsdb-p1']);
+      expect(journey[1].team2).toBe('Deportivo La Coruña');
+    });
+
     test('ignora partidos entre semana y ya jugados', async () => {
       const service = new FixturesService(fetchFor({
         86: { events: [

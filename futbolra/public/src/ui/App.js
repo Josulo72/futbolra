@@ -82,6 +82,8 @@ class App {
     if (matches.some(m => !String(m.id).match(/^(espn|tsdb)-/))) return true;
     // Una jornada con partidos de fines de semana distintos se rehace
     if (!FixturesService.sameWeekend(matches.map(m => m.date))) return true;
+    // Un partido repetido (Madrid-Barça) se rehace con el del Atlético
+    if (new Set(matches.map(m => m.id)).size !== matches.length) return true;
     return new Date() >= this.getJourneyResetTime(matches);
   }
 

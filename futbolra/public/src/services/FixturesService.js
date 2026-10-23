@@ -1,7 +1,8 @@
 // Partidos reales: ESPN para Real Madrid y Barcelona, TheSportsDB para la Ponferradina.
 const FIXTURE_TEAMS = [
   { name: 'Real Madrid', source: 'espn', id: '86' },
-  { name: 'FC Barcelona', source: 'espn', id: '83' },
+  // Si el Barça juega contra el Madrid, su hueco lo ocupa el partido del Atlético
+  { name: 'FC Barcelona', source: 'espn', id: '83', fallback: { name: 'Atlético de Madrid', source: 'espn', id: '1068' } },
   { name: 'SD Ponferradina', source: 'thesportsdb', id: '134697' }
 ];
 
@@ -117,12 +118,29 @@ class FixturesService {
     throw new Error(`No hay un fin de semana en el que jueguen todos: ${names}`);
   }
 
-  // Devuelve los 3 partidos en orden: Madrid, Barça, Ponferradina
+  fetchTeamEvents(team, now) {
+    return team.source === 'espn' ? this.fetchEspnEvents(team, now) : this.fetchSportsDbEvents(team, now);
+  }
+
+  // Un partido repetido (Madrid-Barça) se cambia por el del equipo de reserva en ese mismo fin de semana
+  async replaceDuplicates(picks, now) {
+    for (let i = 0; i < picks.length; i++) {
+      const fallback = FIXTURE_TEAMS[i].fallback;
+      if (!fallback || !picks.slice(0, i).some(p => p.id === picks[i].id)) continue;
+      const weekend = FixturesService.weekendKey(picks[i].date);
+      const events = await this.fetchTeamEvents(fallback, now);
+      const replacement = events.find(e => FixturesService.weekendKey(e.date) === weekend);
+      if (!replacement) throw new Error(`No hay partido de ${fallback.name} ese fin de semana`);
+      picks[i] = replacement;
+    }
+    return picks;
+  }
+
+  // Devuelve los 3 partidos en orden: Madrid, Barça (o Atlético), Ponferradina
   async getNextJourney(now = new Date()) {
-    const eventsByTeam = await Promise.all(FIXTURE_TEAMS.map(team =>
-      team.source === 'espn' ? this.fetchEspnEvents(team, now) : this.fetchSportsDbEvents(team, now)
-    ));
-    return this.pickCommonWeekend(eventsByTeam).map(r => ({
+    const eventsByTeam = await Promise.all(FIXTURE_TEAMS.map(team => this.fetchTeamEvents(team, now)));
+    const picks = await this.replaceDuplicates(this.pickCommonWeekend(eventsByTeam), now);
+    return picks.map(r => ({
       id: r.id,
       team1: r.team1,
       team2: r.team2,
