@@ -247,3 +247,23 @@ describe('nombres de partida y colores', () => {
     expect(() => porra.adminAction(game, { token: TOKEN, action: 'setColor', participantId: 'seed-hugo', color: '#000' })).toThrow(/Color/);
   });
 });
+
+describe('partidos pendientes del directo', () => {
+  const NOW = Date.UTC(2026, 10, 2, 12);
+  const game = (matches) => ({ matches });
+
+  test('sigue pendiente un partido empezado hace días y sin terminar', () => {
+    const m = { id: 'espn-1', date: new Date(NOW - 45 * HOUR).toISOString() };
+    expect(porra.dueMatches(game([m]), NOW)).toEqual([m]);
+  });
+
+  test('deja fuera los no empezados, los terminados y los corregidos a mano', () => {
+    const date = new Date(NOW - HOUR).toISOString();
+    expect(porra.dueMatches(game([
+      { id: 'a', date: new Date(NOW + HOUR).toISOString() },
+      { id: 'b', date, status: 'finished' },
+      { id: 'c', date, status: 'live', manual: true },
+      { id: 'd', date: null },
+    ]), NOW)).toEqual([]);
+  });
+});

@@ -200,6 +200,14 @@ function submitPredictions(game, participantId, predictions, now = Date.now()) {
   return participant;
 }
 
+// Partidos ya empezados que siguen sin terminar, sea cual sea el tiempo pasado
+function dueMatches(game, now = Date.now()) {
+  return (game.matches || []).filter((m) => {
+    if (!m.date || m.status === 'finished' || m.manual) return false;
+    return now >= new Date(m.date).getTime();
+  });
+}
+
 // Marcadores del directo; los partidos corregidos a mano por el administrador no se tocan
 function applyLiveUpdates(game, updates) {
   for (const match of game.matches) {
@@ -366,6 +374,7 @@ module.exports = {
   applyJourney,
   addParticipant,
   submitPredictions,
+  dueMatches,
   applyLiveUpdates,
   adminAction,
 };
