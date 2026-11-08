@@ -14,6 +14,29 @@ class Match {
     this.round = data.round || 0;
     this.weekendMatch = data.weekendMatch || false;
     this.manual = data.manual || false;
+    this.clock = data.clock || null;
+  }
+
+  // Minuto en curso ("67'", "45+2'", "Descanso") o null si no está en juego
+  clockLabel(now = Date.now()) {
+    if (this.status === 'finished') return 'Final';
+    if (this.status !== 'live') return null;
+    const c = this.clock;
+    if (!c) return 'En juego';
+    if (c.label) return c.label;
+    const minute = Math.max(1, Math.floor((now - c.start) / 60000) + 1) + (c.half === 2 ? 45 : 0);
+    const limit = c.half === 2 ? 90 : 45;
+    return minute > limit ? `${limit}+${minute - limit}'` : `${minute}'`;
+  }
+
+  // Reloj de marcador de estadio: "67:23" y cuánto del partido se ha jugado (0 a 1)
+  clockTime(now = Date.now()) {
+    const c = this.clock;
+    if (this.status !== 'live' || !c || c.label) return null;
+    const secs = Math.max(0, Math.floor((now - c.start) / 1000)) + (c.half === 2 ? 45 * 60 : 0);
+    const mm = String(Math.floor(secs / 60)).padStart(2, '0');
+    const ss = String(secs % 60).padStart(2, '0');
+    return { text: `${mm}:${ss}`, progress: Math.min(1, secs / (90 * 60)) };
   }
 
   isWeekend() {
@@ -71,7 +94,8 @@ class Match {
       events: this.events,
       round: this.round,
       weekendMatch: this.weekendMatch,
-      manual: this.manual
+      manual: this.manual,
+      clock: this.clock
     };
   }
 

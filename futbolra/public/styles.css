@@ -632,6 +632,81 @@ h1.hero-title { text-wrap: balance; }
 .fixture--lead .board { font-size: clamp(3.2rem, 7vw, 5.6rem); }
 .fixture--lead .crest--lg { width: 88px; height: 88px; }
 .fixture--lead .side-name { font-size: 17px; }
+.board:has(.match-clock) { display: flex; flex-direction: column; align-items: center; }
+.board-score { display: inline-flex; align-items: baseline; }
+
+/* Reloj del partido: bajo el marcador, grande y en lima mientras se juega */
+.match-clock {
+  display: inline-flex; align-items: center; gap: 10px;
+  margin-top: 14px;
+  padding: 6px 16px 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.match-clock.is-live {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.match-clock.is-live .live-dot,
+.match-clock.is-live .live-dot::after { background: var(--accent-ink); }
+
+/* En juego: late, corre el segundero y una barra marca lo jugado */
+.match-clock.is-live {
+  position: relative; overflow: hidden; isolation: isolate;
+  animation: clock-breathe 2.4s ease-in-out infinite;
+}
+.match-clock.is-running { padding-bottom: 10px; }
+.clock-text { display: inline-flex; align-items: baseline; }
+.clock-sep { margin: 0 0.04em; animation: clock-blink 1s steps(1, end) infinite; }
+.clock-ss { display: inline-block; min-width: 1.15em; opacity: 0.72; }
+.clock-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+  background: rgba(19, 33, 15, 0.18);
+}
+.clock-bar::after {
+  content: ''; position: absolute; inset: 0;
+  transform-origin: left center;
+  transform: scaleX(var(--p, 0));
+  background: var(--accent-ink);
+  transition: transform 1s linear;
+}
+/* Reflejo que recorre la pastilla */
+.match-clock.is-live::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.45) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: clock-sheen 3.2s var(--ease-out) infinite;
+}
+.match-clock.is-flash { animation: clock-flash 700ms var(--ease-out), clock-breathe 2.4s ease-in-out infinite 700ms; }
+
+@keyframes clock-breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(201, 242, 77, 0.0), 0 0 18px rgba(201, 242, 77, 0.25); }
+  50% { box-shadow: 0 0 0 6px rgba(201, 242, 77, 0.12), 0 0 32px rgba(201, 242, 77, 0.45); }
+}
+@keyframes clock-blink { 50% { opacity: 0.25; } }
+@keyframes clock-sheen { 0% { transform: translateX(-120%); } 55%, 100% { transform: translateX(120%); } }
+@keyframes clock-flash {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(201, 242, 77, 0.25), 0 0 48px rgba(201, 242, 77, 0.7); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .match-clock.is-live, .match-clock.is-live::before, .clock-sep { animation: none; }
+  .clock-bar::after { transition: none; }
+}
+.fixture--lead .match-clock { font-size: 28px; padding: 8px 20px 8px 16px; }
+.kickoff-caption .match-clock { margin-top: 0; font-size: 28px; }
 .board-dash { color: var(--text-3); margin: 0 0.12em; }
 .board-time { color: var(--text-2); font-weight: 800; }
 .is-final .board { color: var(--text); }

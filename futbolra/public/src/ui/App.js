@@ -64,6 +64,7 @@ class App {
       this.renderJourneyStatus();
       this.renderHero();
     }, 30 * 1000);
+    setInterval(() => this.tickClocks(), 1000);
   }
 
   // Martes 06:00 siguiente al último partido de la jornada
@@ -840,10 +841,9 @@ class App {
     let caption;
     let bigClass = '';
     if (live) {
-      const last = [...(live.events || [])].reverse().find(e => e.minute);
       big = live.getScore() ? this.scoreHTML(live) : 'En juego';
       if (this.changes?.scores[live.id]) bigClass = ' is-goal';
-      caption = last ? `En directo, minuto ${this.esc(last.minute)}` : 'En directo';
+      caption = this.clockHTML(live);
     } else if (status === 'open') {
       const left = first.date - new Date();
       big = this.countdown(left);
@@ -991,7 +991,7 @@ class App {
     const state = isLive
       ? '<span class="live-dot" aria-hidden="true"></span>En directo'
       : isFinished ? 'Final' : 'Por jugar';
-    const board = hasScore ? this.scoreHTML(match) : `<span class="board-time">${time}</span>`;
+    const board = hasScore ? `<span class="board-score">${this.scoreHTML(match)}</span>` : `<span class="board-time">${time}</span>`;
     const goal = Boolean(this.changes?.scores[match.id]);
 
     return `
@@ -1002,12 +1002,49 @@ class App {
         </header>
         <div class="fixture-body">
           <div class="side">${this.crest(match.team1Logo, 'crest--lg')}<span class="side-name">${this.esc(match.team1)}</span></div>
-          <div class="board">${board}</div>
+          <div class="board">${board}${this.clockHTML(match)}</div>
           <div class="side">${this.crest(match.team2Logo, 'crest--lg')}<span class="side-name">${this.esc(match.team2)}</span></div>
         </div>
         ${isLive || isFinished ? this.renderMatchEvents(match) : ''}
       </article>
     `;
+  }
+
+  // Reloj del partido bajo el marcador: minuto en directo, descanso o final
+  clockHTML(match) {
+    const label = match.clockLabel();
+    if (!label) return '';
+    const live = match.isLive();
+    const time = match.clockTime();
+    const inner = this.clockInner(label, time);
+    return `<span class="match-clock${live ? ' is-live' : ''}${time ? ' is-running' : ''}" role="timer" aria-live="off" data-clock-id="${this.esc(match.id)}" aria-label="${this.esc(label)}" style="--p:${time ? time.progress : 0}">${live ? '<span class="live-dot" aria-hidden="true"></span>' : ''}<span class="clock-text" aria-hidden="true">${inner}</span>${time ? '<span class="clock-bar" aria-hidden="true"></span>' : ''}</span>`;
+  }
+
+  clockInner(label, time) {
+    if (!time) return this.esc(label);
+    const [mm, ss] = time.text.split(':');
+    return `${mm}<span class="clock-sep">:</span><span class="clock-ss">${ss}</span>`;
+  }
+
+  // Hace correr los relojes cada segundo sin repintar las tarjetas
+  tickClocks() {
+    document.querySelectorAll('.match-clock[data-clock-id]').forEach(el => {
+      const match = this.gameManager.getMatch(el.dataset.clockId);
+      const label = match?.clockLabel();
+      if (!label) return;
+      const time = match.clockTime();
+      const text = el.querySelector('.clock-text');
+      const minuteBefore = el.getAttribute('aria-label');
+      if (text) text.innerHTML = this.clockInner(label, time);
+      el.setAttribute('aria-label', label);
+      if (time) el.style.setProperty('--p', time.progress);
+      // Cada minuto nuevo, un destello
+      if (minuteBefore !== label && !prefersReducedMotion()) {
+        el.classList.remove('is-flash');
+        void el.offsetWidth;
+        el.classList.add('is-flash');
+      }
+    });
   }
 
   renderMatchEvents(match) {

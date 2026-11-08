@@ -219,6 +219,7 @@ function applyLiveUpdates(game, updates) {
       match.score2 = u.score2;
     }
     if (u.events) match.events = u.events;
+    match.clock = u.status === 'live' ? (u.clock || null) : null;
   }
   recomputeEliminations(game);
   return game;
