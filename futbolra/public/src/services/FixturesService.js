@@ -11,6 +11,10 @@ const BACKUP_TEAM = { name: 'Atlético de Madrid', source: 'espn', id: '1068' };
 const ESPN_URL = (id) => `https://site.api.espn.com/apis/site/v2/sports/soccer/esp.1/teams/${id}/schedule?fixture=true`;
 const SPORTSDB_URL = (id) => `https://www.thesportsdb.com/api/v1/json/123/eventsnext.php?id=${id}`;
 
+const SPORTSDB_ROUND_URL = (league, round, season) =>
+  `https://www.thesportsdb.com/api/v1/json/123/eventsround.php?id=${league}&r=${round}&s=${season}`;
+const SPORTSDB_EXTRA_ROUNDS = 3;
+
 const MADRID_TZ = 'Europe/Madrid';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -55,6 +59,20 @@ class FixturesService {
     return keys.length > 0 && keys.every(k => k !== null && k === keys[0]);
   }
 
+  // Fin de semana en curso (sábado a lunes) o, entre semana, el del sábado siguiente
+  static currentWeekendKey(now = new Date()) {
+    const key = FixturesService.weekendKey(now);
+    if (key) return key;
+    const { year, month, day, weekday } = FixturesService.madridParts(now);
+    return new Date(Date.UTC(year, month - 1, day) + (6 - weekday) * DAY_MS).toISOString().slice(0, 10);
+  }
+
+  // Hay parón si la jornada no se juega este fin de semana sino uno posterior
+  static isBreakBefore(firstDate, now = new Date()) {
+    const key = firstDate ? FixturesService.weekendKey(new Date(firstDate)) : null;
+    return key !== null && key > FixturesService.currentWeekendKey(now);
+  }
+
   async getJson(url) {
     const res = await this.fetchFn(url);
     if (!res.ok) throw new Error(`HTTP ${res.status} en ${url}`);
@@ -82,9 +100,30 @@ class FixturesService {
     return this.upcomingWeekend(events, now, team);
   }
 
+  // TheSportsDB solo da el próximo partido. Si cae en viernes o entre semana (o LaLiga para
+  // por selecciones) hacen falta las jornadas siguientes para encontrar el fin de semana común.
+  async fetchSportsDbLaterRounds(team, nextEvents) {
+    const ref = nextEvents[nextEvents.length - 1];
+    const round = Number(ref?.intRound);
+    if (!ref?.idLeague || !ref?.strSeason || !Number.isInteger(round)) return [];
+    const rounds = await Promise.all(
+      Array.from({ length: SPORTSDB_EXTRA_ROUNDS }, (_, i) =>
+        this.getJson(SPORTSDB_ROUND_URL(ref.idLeague, round + i + 1, ref.strSeason))
+          .then(d => d?.events || [])
+          .catch(() => [])
+      )
+    );
+    const known = new Set(nextEvents.map(e => e.idEvent));
+    return rounds.flat().filter(e =>
+      (e.idHomeTeam === team.id || e.idAwayTeam === team.id) && !known.has(e.idEvent)
+    );
+  }
+
   async fetchSportsDbEvents(team, now) {
     const data = await this.getJson(SPORTSDB_URL(team.id));
-    const events = (data.events || []).map(e => ({
+    const nextEvents = data.events || [];
+    const later = await this.fetchSportsDbLaterRounds(team, nextEvents);
+    const events = [...nextEvents, ...later].map(e => ({
       id: `tsdb-${e.idEvent}`,
       date: new Date(`${e.dateEvent}T${e.strTime || '00:00:00'}Z`),
       team1: e.strHomeTeam,

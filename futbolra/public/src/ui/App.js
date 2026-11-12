@@ -858,7 +858,10 @@ class App {
     }
 
     const label = live ? 'Ahora mismo' : status === 'open' ? 'Empieza en' : 'Jornada';
+    // Fin de semana sin jornada: se avisa en rojo sin quitar la cuenta atrás
+    const onBreak = status === 'open' && FixturesService.isBreakBefore(first.date);
     panel.innerHTML = `
+      ${onBreak ? '<p class="kickoff-break">Parón por selecciones</p>' : ''}
       <p class="kickoff-label">${label}</p>
       <p class="kickoff-big${bigClass}">${big}</p>
       <div class="kickoff-match">

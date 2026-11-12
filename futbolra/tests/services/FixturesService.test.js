@@ -63,6 +63,22 @@ describe('FixturesService', () => {
     });
   });
 
+  describe('isBreakBefore', () => {
+    const journey = '2026-11-21T20:00:00Z';
+
+    test('hay parón mientras queda un fin de semana sin jornada por delante', () => {
+      expect(FixturesService.isBreakBefore(journey, new Date('2026-11-12T10:00:00Z'))).toBe(true);
+      expect(FixturesService.isBreakBefore(journey, new Date('2026-11-15T10:00:00Z'))).toBe(true);
+      expect(FixturesService.isBreakBefore(journey, new Date('2026-11-16T10:00:00Z'))).toBe(true);
+    });
+
+    test('desde el martes de la semana de la jornada ya no hay parón', () => {
+      expect(FixturesService.isBreakBefore(journey, new Date('2026-11-17T10:00:00Z'))).toBe(false);
+      expect(FixturesService.isBreakBefore(journey, new Date('2026-11-21T10:00:00Z'))).toBe(false);
+      expect(FixturesService.isBreakBefore(null, new Date('2026-11-12T10:00:00Z'))).toBe(false);
+    });
+  });
+
   describe('getNextJourney', () => {
     test('espera al primer fin de semana en el que juegan los tres', async () => {
       // LaLiga para por selecciones: Madrid y Barça vuelven el 10 de octubre.
@@ -140,6 +156,35 @@ describe('FixturesService', () => {
       expect(journey.map(m => m.id)).toEqual(['espn-c1', 'espn-a1', 'tsdb-p1']);
       expect(journey[1].team1).toBe('Atlético Madrid');
       expect(journey[1].team2).toBe('Deportivo La Coruña');
+    });
+
+    test('si el próximo partido de la Ponferradina es en viernes, busca en las jornadas siguientes', async () => {
+      // Parón de selecciones: TheSportsDB solo da el partido del viernes 13 y LaLiga vuelve el 21-22
+      const friday = {
+        ...tsdbEvent('p12', '2026-11-13', '18:00:00', 'Ponferradina', 'Cacereño'),
+        idLeague: '5086', strSeason: '2026-2027', intRound: '12', idHomeTeam: '134697', idAwayTeam: '1'
+      };
+      const rounds = {
+        13: { events: [
+          { ...tsdbEvent('x13', '2026-11-21', '16:00:00', 'Lugo', 'Zamora'), idHomeTeam: '2', idAwayTeam: '3' },
+          { ...tsdbEvent('p13', '2026-11-21', '17:45:00', 'Ponferradina', 'Extremadura'), idHomeTeam: '134697', idAwayTeam: '4' }
+        ] },
+        14: { events: null }
+      };
+      const espn = {
+        86: { events: [espnEvent('m1', '2026-11-21T20:00Z', 'Real Madrid', 'Celta Vigo')] },
+        83: { events: [espnEvent('b1', '2026-11-22T13:00Z', 'Barcelona', 'Villarreal')] }
+      };
+      const service = new FixturesService(async (url) => {
+        const round = url.match(/eventsround\.php\?id=5086&r=(\d+)&s=2026-2027/);
+        if (round) return rounds[round[1]] ? jsonResponse(rounds[round[1]]) : { ok: false, status: 500 };
+        if (url.includes('eventsnext')) return jsonResponse({ events: [friday] });
+        return jsonResponse(espn[url.match(/teams\/(\d+)\//)[1]]);
+      });
+
+      const journey = await service.getNextJourney(new Date('2026-11-12T10:00:00Z'));
+      expect(journey.map(m => m.id)).toEqual(['espn-m1', 'espn-b1', 'tsdb-p13']);
+      expect(FixturesService.sameWeekend(journey.map(m => m.date))).toBe(true);
     });
 
     test('falla con un mensaje claro si no coinciden nunca', async () => {

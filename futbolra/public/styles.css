@@ -336,6 +336,15 @@ h1.hero-title { text-wrap: balance; }
   background: rgba(238, 242, 236, 0.1);
   pointer-events: none;
 }
+.kickoff-break {
+  align-self: flex-start;
+  margin-bottom: 14px; padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 107, 87, 0.45);
+  background: var(--card-red-soft);
+  color: var(--card-red);
+  font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
 .kickoff-label { font-size: 14px; color: var(--text-3); }
 .kickoff-big {
   font-family: var(--font-display);
